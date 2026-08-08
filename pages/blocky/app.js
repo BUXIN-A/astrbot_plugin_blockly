@@ -818,7 +818,9 @@ function registerPythonGenerator() {
 
 /* ---------- 收纳盒（trashcan）常驻开关 ---------- */
 const TRASHCAN_KEY = "blocky_trashcan";
-let trashcanToggleBtn = null; // 工具箱底部追加的「收纳盒开关」HTML 按钮
+let trashcanToggleBtn = null; // 工具箱底部追加的「收纳盒开关」label 容器
+let trashcanToggleCheck = null; // 内部的 checkbox
+let trashcanToggleImg = null; // 内部的勾选图标
 
 function trashcanVisible() {
   try {
@@ -837,8 +839,11 @@ function setTrashcanVisible(on) {
   if (workspace && workspace.trashcan && workspace.trashcan.svgGroup) {
     workspace.trashcan.svgGroup.style.display = on ? "" : "none";
   }
-  if (trashcanToggleBtn) {
-    trashcanToggleBtn.textContent = on ? "隐藏收纳盒" : "显示收纳盒";
+  if (trashcanToggleCheck) {
+    trashcanToggleCheck.checked = on;
+  }
+  if (trashcanToggleImg) {
+    trashcanToggleImg.src = on ? IMG_CHECK_OK : IMG_CHECK;
   }
 }
 
@@ -846,15 +851,36 @@ function addTrashcanToggle() {
   if (!workspace) return;
   const container = document.querySelector(".blocklyToolbox");
   if (!container || container.querySelector(".blocky-trashcan-toggle")) return;
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "blocky-trashcan-toggle btn btn-sm btn-ghost";
-  btn.title = "显示/隐藏画布右上角的收纳盒（拖入删除区域）";
-  btn.addEventListener("click", () => {
-    setTrashcanVisible(!trashcanVisible());
+  const label = document.createElement("label");
+  label.className = "blocky-trashcan-toggle";
+  label.title = "显示/隐藏画布右上角的收纳盒（拖入删除区域）";
+  const labelSpan = document.createElement("span");
+  labelSpan.className = "trashcan-label";
+  labelSpan.textContent = "收纳盒";
+  const toggle = document.createElement("span");
+  toggle.className = "icon-toggle";
+  toggle.style.display = "inline-flex";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = trashcanVisible();
+  const img = document.createElement("img");
+  img.className = "toggle-check";
+  img.src = input.checked ? IMG_CHECK_OK : IMG_CHECK;
+  img.alt = "收纳盒开关";
+  toggle.appendChild(input);
+  toggle.appendChild(img);
+  label.appendChild(labelSpan);
+  label.appendChild(toggle);
+  label.addEventListener("click", (e) => {
+    // 点击 label 会切换 checkbox 状态，但我们需要同步更新 img 和 trashcan
+    requestAnimationFrame(() => {
+      setTrashcanVisible(input.checked);
+    });
   });
-  container.appendChild(btn);
-  trashcanToggleBtn = btn;
+  container.appendChild(label);
+  trashcanToggleBtn = label;
+  trashcanToggleCheck = input;
+  trashcanToggleImg = img;
 }
 
 function patchTrashcanSprites() {

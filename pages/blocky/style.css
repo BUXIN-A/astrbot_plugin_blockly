@@ -666,19 +666,35 @@ html[data-theme="dark"] .blocklyTreeRow.selected {
   background-color: #1e2c47;
 }
 
-/* 工具箱底部「收纳盒开关」按钮：flex 容器 + margin-top:auto 把按钮固定在底部 */
+/* 工具箱底部「收纳盒开关」：flex 容器 + margin-top:auto 把按钮固定在底部 */
 .blocklyToolbox {
   display: flex;
   flex-direction: column;
 }
 
 .blocky-trashcan-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-top: auto;
-  width: calc(100% - 16px);
-  margin-left: 8px;
-  margin-right: 8px;
-  margin-bottom: 8px;
-  text-align: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  border-top: 1px solid var(--border);
+}
+
+.blocky-trashcan-toggle:hover {
+  background-color: var(--bg);
+}
+
+html[data-theme="dark"] .blocky-trashcan-toggle:hover {
+  background-color: #1f232b;
+}
+
+.trashcan-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 /* 工作区（积木画布）背景 */
