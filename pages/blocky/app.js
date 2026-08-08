@@ -821,12 +821,29 @@ const TRASHCAN_KEY = "blocky_trashcan";
 let trashcanToggleBtn = null; // 工具箱底部追加的「收纳盒开关」label 容器
 let trashcanToggleCheck = null; // 内部的 checkbox
 let trashcanToggleImg = null; // 内部的勾选图标
+let _origCloseLid = null; // 保存原始 closeLid 方法
+let _origCloseFlyout = null; // 保存原始 closeFlyout 方法
 
 function trashcanVisible() {
   try {
     return localStorage.getItem(TRASHCAN_KEY) !== "off";
   } catch {
     return true;
+  }
+}
+
+function patchTrashcanSticky(on) {
+  // 当常驻开启时，阻止收纳盒因鼠标点击等互动自动关闭（lid 和 flyout）。
+  const tc = workspace && workspace.trashcan;
+  if (!tc) return;
+  if (on) {
+    if (!_origCloseLid) _origCloseLid = tc.closeLid.bind(tc);
+    if (!_origCloseFlyout) _origCloseFlyout = tc.closeFlyout.bind(tc);
+    tc.closeLid = () => {};
+    tc.closeFlyout = () => {};
+  } else {
+    if (_origCloseLid) { tc.closeLid = _origCloseLid; _origCloseLid = null; }
+    if (_origCloseFlyout) { tc.closeFlyout = _origCloseFlyout; _origCloseFlyout = null; }
   }
 }
 
@@ -839,6 +856,7 @@ function setTrashcanVisible(on) {
   if (workspace && workspace.trashcan && workspace.trashcan.svgGroup) {
     workspace.trashcan.svgGroup.style.display = on ? "" : "none";
   }
+  patchTrashcanSticky(on);
   if (trashcanToggleCheck) {
     trashcanToggleCheck.checked = on;
   }
@@ -853,10 +871,10 @@ function addTrashcanToggle() {
   if (!container || container.querySelector(".blocky-trashcan-toggle")) return;
   const label = document.createElement("label");
   label.className = "blocky-trashcan-toggle";
-  label.title = "显示/隐藏画布右上角的收纳盒（拖入删除区域）";
+  label.title = "常驻收纳盒：开启后收纳盒始终可见，不会因鼠标点击而自动关闭";
   const labelSpan = document.createElement("span");
   labelSpan.className = "trashcan-label";
-  labelSpan.textContent = "收纳盒";
+  labelSpan.textContent = "收纳盒常驻";
   const toggle = document.createElement("span");
   toggle.className = "icon-toggle";
   toggle.style.display = "inline-flex";
@@ -866,7 +884,7 @@ function addTrashcanToggle() {
   const img = document.createElement("img");
   img.className = "toggle-check";
   img.src = input.checked ? IMG_CHECK_OK : IMG_CHECK;
-  img.alt = "收纳盒开关";
+  img.alt = "收纳盒常驻开关";
   toggle.appendChild(input);
   toggle.appendChild(img);
   label.appendChild(labelSpan);
