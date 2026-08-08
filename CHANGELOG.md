@@ -2,6 +2,11 @@
 
 本插件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循语义化版本。
 
+## [v0.3.8] - 2026-08-08
+
+### 修复
+- **导入程序报错** `TypeError("'coroutine' object is not iterable")`：`api_import` / `api_import_file` 直接返回了 `_import_data` 的协程对象（漏写 `await`），导致 AstrBot 响应层报错。已改为 `await` 后返回。
+
 ## [v0.3.7] - 2026-08-08
 
 ### 修复

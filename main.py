@@ -447,7 +447,7 @@ class BlockyPlugin(Star):
     async def api_import(self) -> Any:
         """从 JSON 导入程序（body 为导出格式或程序对象列表）。"""
         body = await request.json(default={})
-        return self._import_data(body)
+        return await self._import_data(body)
 
     async def api_import_file(self) -> Any:
         """从上传的文件导入程序（multipart 字段名：file）。"""
@@ -460,7 +460,7 @@ class BlockyPlugin(Star):
             body = json.loads(raw.decode("utf-8"))
         except Exception as exc:  # noqa: BLE001
             return error_response(f"文件解析失败：{exc}", status_code=400)
-        return self._import_data(body)
+        return await self._import_data(body)
 
     def _export_data(self, programs: list[BlockyProgram]) -> dict:
         """构造导出的 JSON 结构。"""
