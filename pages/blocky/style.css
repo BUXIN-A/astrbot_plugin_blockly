@@ -543,6 +543,29 @@ html[data-theme="dark"] .blocklyTreeLabel {
   color: #e8eaf0;
 }
 
+/* 深色主题：Blockly 工具箱/flyout 默认背景偏浅，需一并加深，否则浅色分类
+   文字与背景对比度不足（文字本身颜色没问题）。 */
+html[data-theme="dark"] .blocklyToolboxDiv {
+  background-color: #16181d;
+  border-right: 1px solid var(--border);
+}
+
+html[data-theme="dark"] .blocklyTreeRow {
+  background: transparent;
+}
+
+html[data-theme="dark"] .blocklyTreeRow.selected {
+  background: #1e2c47;
+}
+
+html[data-theme="dark"] .blocklyFlyoutBackground {
+  fill: #1f232b;
+}
+
+html[data-theme="dark"] .blocklyFlyoutLabelText {
+  fill: #e8eaf0;
+}
+
 /* ---------- 图标 ---------- */
 .icon {
   width: 16px;
