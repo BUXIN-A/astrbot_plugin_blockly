@@ -2,6 +2,13 @@
 
 本插件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循语义化版本。
 
+## [v0.3.1] - 2026-08-08
+
+### 修复
+- **Blocky 插件页图标无法加载 + 控制台报错**：AstrBot 插件页只会给 HTML/CSS/import 中的静态资源引用追加 `asset_token`，JS 运行时创建的 `<img>` 与 Blockly 内部的媒体请求（`vendor/media/*.mp3`、`sprites.svg` 等）不携带 token 导致 401（声音资源还触发跨域 `Failed to fetch`）。处理方式：
+  - 侧栏复制/删除/启用开关、模型白名单移除等运行时创建的图标改用内嵌 data URI，不再依赖图片文件请求。
+  - Blockly 关闭 `sounds`（消除 `fetch` 报错）、关闭 `trashcan` 与缩放控件（不再请求 `sprites.svg`），缩放滚轮功能保留。
+
 ## [v0.3.0] - 2026-08-08
 
 ### 变更

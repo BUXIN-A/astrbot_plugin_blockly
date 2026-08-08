@@ -13,7 +13,7 @@ desc: |
   - 每个程序可配置触发条件（全部消息 / 包含关键词 / 前缀 / 正则 / 仅管理员）。
   - 可对「AI 回答」积木授权一个或多个可用模型（提供商 ID + 模型 ID 白名单）。
   - 支持 WebUI 一键"测试运行"，无需真实消息即可验证。
-version: v0.3.0
+version: v0.3.1
 author: BUXIN-A
 repo: https://github.com/BUXIN-A/astrbot_plugin_blocky
 astrbot_version: ">=4.9.2"
