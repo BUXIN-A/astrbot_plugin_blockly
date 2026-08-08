@@ -400,3 +400,60 @@ await _blk.reply(await _blk.chat('天气', 'bad_provider:bad-model'))
 
     error = asyncio.run(failing_run())
     assert "全部请求失败" in error
+
+
+def test_tool_generated_code_compiles():
+    """前端「AI 工具」生成器输出的代码可被沙箱编译并正常执行。"""
+    code = (
+        "async def blk_tool_abc():\n"
+        "    _blk.tool_return(_blk.get_message())\n"
+        "_blk.tool('my_tool', 'desc', blk_tool_abc, True)\n"
+        "if _blk.event_type == 'message':\n"
+        "    await _blk.reply(await _blk.chat('hi'))\n"
+    )
+    source = wrap_code(code)
+    _assert_safe_source(source)
+    compile(source, "<test>", "exec")
+    program = BlockyProgram(code=code)
+    result = asyncio.run(run_sim(program, message="hi"))
+    assert result["error"] == ""
+    assert result["replies"] and "hi" in result["replies"][0]
+
+
+def test_ai_tool_registered_and_called():
+    """「AI 工具」注册后由工具循环调用，返回值作为结果返回给 AI。"""
+    program = BlockyProgram(
+        code="""
+async def blk_tool_abc():
+    await _blk.reply('工具被调用')
+    _blk.tool_return('42')
+_blk.tool('my_tool', '查询数字', blk_tool_abc, True)
+await _blk.reply(await _blk.chat('给我一个数字'))
+""",
+    )
+    result = asyncio.run(run_sim(program, message="hi"))
+    assert result["error"] == ""
+    assert "工具被调用" in result["replies"]
+    assert any("[工具 my_tool] 42" in r for r in result["replies"])
+
+
+def test_ai_tool_no_return_content():
+    """RETURN 未勾选时不向 AI 返回内容。"""
+    program = BlockyProgram(
+        code="""
+async def blk_tool_abc():
+    _blk.log('done')
+_blk.tool('my_tool', '描述', blk_tool_abc, False)
+await _blk.reply(await _blk.chat('hi'))
+""",
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert result["error"] == ""
+    assert result["replies"] and "无返回内容" in result["replies"][0]
+
+
+def test_ai_tool_empty_name_raises():
+    """工具名称为空时报错。"""
+    program = BlockyProgram(code="_blk.tool('', 'x', lambda: None, True)")
+    result = asyncio.run(run_sim(program, message="x"))
+    assert "不能为空" in result["error"]

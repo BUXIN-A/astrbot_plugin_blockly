@@ -178,8 +178,56 @@ class MockContext:
             _Resp.completion_text = f"(模拟) AI 响应：{prompt}"
         return _Resp()
 
+    async def tool_loop_agent(
+        self,
+        *,
+        event=None,
+        chat_provider_id="",
+        prompt="",
+        tools=None,
+        system_prompt=None,
+        contexts=None,
+        max_steps=30,
+        tool_call_timeout=120,
+        **kwargs,
+    ):
+        """模拟工具循环：不真正调用 LLM，而是依次执行每个工具并汇总结果。"""
+        tool_list = list(getattr(tools, "tools", None) or tools or [])
+        lines = []
+        for tool in tool_list:
+            try:
+                ret = await tool.handler(event) if getattr(tool, "handler", None) else None
+                lines.append(f"[工具 {tool.name}] {_tool_result_to_text(ret)}")
+            except Exception as exc:  # noqa: BLE001 - 单工具失败不影响其他工具
+                lines.append(f"[工具 {tool.name}] 错误：{exc}")
+
+        class _Resp:
+            completion_text = ""
+
+        if prompt in self.chat_responses:
+            _Resp.completion_text = self.chat_responses[prompt]
+        else:
+            _Resp.completion_text = f"(模拟) AI 响应：{prompt}"
+        if lines:
+            _Resp.completion_text += "\n" + "\n".join(lines)
+        return _Resp()
+
     async def send_message(self, umo, chain) -> None:
         self.sent.append((umo, _chain_to_text(chain)))
+
+
+def _tool_result_to_text(ret) -> str:
+    """把工具 handler 的返回值转为可读文本（str 或 mcp CallToolResult 均可）。"""
+    if ret is None:
+        return "(无返回内容)"
+    if isinstance(ret, str):
+        return ret
+    content = getattr(ret, "content", None)
+    if isinstance(content, list):
+        return "\n".join(
+            (getattr(c, "text", None) or str(c)) for c in content
+        )
+    return str(ret)
 
 
 def _chain_to_text(chain) -> str:

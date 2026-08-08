@@ -666,6 +666,21 @@ html[data-theme="dark"] .blocklyTreeRow.selected {
   background-color: #1e2c47;
 }
 
+/* 工具箱底部「收纳盒开关」按钮：flex 容器 + margin-top:auto 把按钮固定在底部 */
+.blocklyToolbox {
+  display: flex;
+  flex-direction: column;
+}
+
+.blocky-trashcan-toggle {
+  margin-top: auto;
+  width: calc(100% - 16px);
+  margin-left: 8px;
+  margin-right: 8px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
 /* 工作区（积木画布）背景 */
 html[data-theme="dark"] .blocklySvg {
   background-color: #16181d;

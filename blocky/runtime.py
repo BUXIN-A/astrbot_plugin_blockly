@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import inspect
 import json
 import logging
 import math
@@ -28,6 +29,14 @@ try:
     from astrbot.core import logger
 except ImportError:  # 测试环境（未安装 AstrBot）
     logger = logging.getLogger("astrbot_plugin_blocky")
+
+try:
+    # 「AI 工具」积木使用 AstrBot 的 FunctionTool/ToolSet 接入函数调用。
+    from astrbot.core.agent.tool import FunctionTool as _AstrFunctionTool
+    from astrbot.core.agent.tool import ToolSet as _AstrToolSet
+except ImportError:  # 测试环境（未安装 AstrBot）
+    _AstrFunctionTool = None
+    _AstrToolSet = None
 
 # OneBot notice 事件类型映射到本插件的事件类型
 NOTICE_KINDS = {
@@ -224,6 +233,9 @@ class BlockyRuntime:
         self._event = event
         self._program = program
         self.event_type = resolve_event_kind(event)
+        self._tools: dict[str, Any] = {}  # 「AI 工具」积木注册的工具（名称 -> FunctionTool）
+        self._tool_result: Any = None  # 当前工具调用通过「设置工具返回值」写入的值
+        self._tool_return_set = False  # 本次工具调用是否设置了返回值
 
     # ---------- 事件读取 ----------
     def _messages(self) -> list:
@@ -373,14 +385,88 @@ class BlockyRuntime:
                 ordered.append((prov, model))
         return ordered
 
+    # ---------- AI 工具（「AI 工具」积木） ----------
+    def tool(self, name: Any, description: Any, handler: Any, return_content: Any = True) -> None:
+        """注册一个「AI 工具」：AI 可根据描述决定何时调用 handler。
+
+        ``handler`` 为积木生成的 ``async def`` 函数，无参数；调用期间可通过
+        ``_blk.tool_return(...)`` 设置返回值。``return_content`` 为真时该返回值
+        会作为工具结果返回给 AI；否则不向 AI 返回内容（可自行回复/发消息）。
+        """
+        name = str(name or "").strip()
+        if not name:
+            raise RuntimeError("AI 工具名称不能为空，请在积木上填写")
+        if not callable(handler):
+            raise RuntimeError(f"AI 工具 {name} 缺少可执行的函数体")
+
+        async def _handler(event, *args, **kwargs):  # noqa: ARG001 - AstrBot 以 (event, **kwargs) 调用
+            # 每次调用重置返回值状态，避免上一次调用的结果串到本次。
+            self._tool_return_set = False
+            self._tool_result = None
+            result = handler()
+            if asyncio.iscoroutine(result):
+                await result
+            elif inspect.isasyncgen(result):
+                async for _ in result:
+                    pass
+            if self._tool_return_set:
+                return str(self._tool_result) if self._tool_result is not None else ""
+            return None
+
+        parameters = {"type": "object", "properties": {}}
+        if _AstrFunctionTool is not None:
+            tool = _AstrFunctionTool(
+                name=name,
+                description=str(description or ""),
+                parameters=parameters,
+                handler=_handler,
+            )
+        else:  # 测试环境（未安装 AstrBot）：构造行为兼容的鸭子类型
+            tool = type(
+                "_FakeTool",
+                (),
+                {
+                    "name": name,
+                    "description": str(description or ""),
+                    "parameters": parameters,
+                    "handler": _handler,
+                    "active": True,
+                },
+            )()
+        self._tools[name] = tool
+
+    def tool_return(self, value: Any) -> None:
+        """「设置工具返回值」积木：把值作为本次工具调用的结果返回给 AI。"""
+        self._tool_result = value
+        self._tool_return_set = True
+
+    async def _chat_with_tools(self, prompt: Any) -> str:
+        """程序注册了「AI 工具」时，通过工具循环调用 LLM，让 AI 可调用工具。"""
+        provider_id = await self._get_current_provider_id()
+        if _AstrToolSet is not None:
+            tools: Any = _AstrToolSet(list(self._tools.values()))
+        else:
+            tools = list(self._tools.values())
+        resp = await self._ctx.tool_loop_agent(
+            event=self._event,
+            chat_provider_id=provider_id,
+            prompt=str(prompt),
+            tools=tools,
+            max_steps=10,
+        )
+        return resp.completion_text
+
     async def chat(self, prompt: Any, models: Any = None) -> str:
         """调用当前会话的 LLM，返回回答文本。
 
-        ``models``（AI 积木「指定模型」字段）可显式指定一个有序的
+        若程序注册了「AI 工具」，走工具循环（AI 可调用工具）；否则按
+        ``models``（AI 积木「指定模型」字段）显式指定一个有序的
         ``provider:model`` 列表（逗号分隔）。提供时按顺序尝试：当前会话正在
         使用的模型优先，其余模型请求失败时自动切换到下一个；全部失败则抛出错误。
         未指定时沿用程序级「可用模型」白名单的原有逻辑。
         """
+        if self._tools:
+            return await self._chat_with_tools(prompt)
         provider_id = await self._get_current_provider_id()
         current_model = await self._get_current_model()
         entries = self._parse_models(models) or _parse_allowlist(self._program.models)

@@ -25,6 +25,11 @@ const IMG_GEAR =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
   );
 
+// 收纳盒（trashcan）图标源：Blockly 默认从 media/sprites.svg 加载，但插件页
+// JS 动态请求不带 asset_token 会 401，故改为内嵌 base64（同 IMG_* 系列方案）。
+const IMG_SPRITES =
+  "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2ZXJzaW9uPSIxLjEiIHdpZHRoPSI5NnB4IiBoZWlnaHQ9IjEyNHB4Ij4KICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgojYmFja2dyb3VuZCB7CiAgZmlsbDogbm9uZTsKfQouYXJyb3dzIHsKICBmaWxsOiAjMDAwOwogIHN0cm9rZTogbm9uZTsKfQouc2VsZWN0ZWQ+LmFycm93cyB7CiAgZmlsbDogI2ZmZjsKfQouY2hlY2ttYXJrIHsKICBmaWxsOiAjMDAwOwogIGZvbnQtZmFtaWx5OiBzYW5zLXNlcmlmOwogIGZvbnQtc2l6ZTogMTBwdDsKICB0ZXh0LWFuY2hvcjogbWlkZGxlOwp9Ci50cmFzaCB7CiAgZmlsbDogIzg4ODsKfQouem9vbSB7CiAgZmlsbDogbm9uZTsKICBzdHJva2U6ICM4ODg7CiAgc3Ryb2tlLXdpZHRoOiAyOwogIHN0cm9rZS1saW5lY2FwOiByb3VuZDsKfQouem9vbT4uY2VudGVyIHsKICBmaWxsOiAjODg4OwogIHN0cm9rZS13aWR0aDogMDsKfQogIDwvc3R5bGU+CiAgPHJlY3QgaWQ9ImJhY2tncm91bmQiIHdpZHRoPSI5NiIgaGVpZ2h0PSIxMjQiIHg9IjAiIHk9IjAiIC8+CgogIDxnPgogICAgPHBhdGggY2xhc3M9ImFycm93cyIgZD0iTSAxMywxLjUgMTMsMTQuNSAxLjc0LDggeiIgLz4KICAgIDxwYXRoIGNsYXNzPSJhcnJvd3MiIGQ9Ik0gMTcuNSwzIDMwLjUsMyAyNCwxNC4yNiB6IiAvPgogICAgPHBhdGggY2xhc3M9ImFycm93cyIgZD0iTSAzNSwxLjUgMzUsMTQuNSA0Ni4yNiw4IHoiIC8+CiAgPC9nPgogIDxnIGNsYXNzPSJzZWxlY3RlZCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwgMTYpIj4KICAgIDxwYXRoIGNsYXNzPSJhcnJvd3MiIGQ9Ik0gMTMsMS41IDEzLDE0LjUgMS43NCw4IHoiIC8+CiAgICA8cGF0aCBjbGFzcz0iYXJyb3dzIiBkPSJNIDE3LjUsMyAzMC41LDMgMjQsMTQuMjYgeiIgLz4KICAgIDxwYXRoIGNsYXNzPSJhcnJvd3MiIGQ9Ik0gMzUsMS41IDM1LDE0LjUgNDYuMjYsOCB6IiAvPgogIDwvZz4KCiAgPHRleHQgY2xhc3M9ImNoZWNrbWFyayIgeD0iNTUuNSIgeT0iMjgiPiYjMTAwMDM7PC90ZXh0PgoKICA8ZyBjbGFzcz0idHJhc2giPgogICAgPHBhdGggZD0iTSAyLDQxIHYgNiBoIDQyIHYgLTYgaCAtMTAuNSBsIC0zLC0zIGggLTE1IGwgLTMsMyB6IiAvPgogICAgPHJlY3Qgd2lkdGg9IjM2IiBoZWlnaHQ9IjIwIiB4PSI1IiB5PSI1MCIgLz4KICAgIDxyZWN0IHdpZHRoPSIzNiIgaGVpZ2h0PSI0MiIgeD0iNSIgeT0iNTAiIHJ4PSI0IiByeT0iNCIgLz4KICA8L2c+CgogIDxnIGNsYXNzPSJ6b29tIj4KICAgIDxjaXJjbGUgcj0iMTEuNSIgY3g9IjE2IiBjeT0iMTA4IiAvPgogICAgPGNpcmNsZSByPSI0LjMiIGN4PSIxNiIgY3k9IjEwOCIgY2xhc3M9ImNlbnRlciIgLz4KICAgIDxwYXRoIGQ9Im0gMjgsMTA4IGgzIiAvPgogICAgPHBhdGggZD0ibSAxLDEwOCBoMyIgLz4KICAgIDxwYXRoIGQ9Im0gMTYsMTIwIHYzIiAvPgogICAgPHBhdGggZD0ibSAxNiw5MyB2MyIgLz4KICA8L2c+CgogIDxnIGNsYXNzPSJ6b29tIj4KICAgIDxjaXJjbGUgcj0iMTUiIGN4PSI0OCIgY3k9IjEwOCIgLz4KICAgIDxwYXRoIGQ9Im0gNDgsMTAxLjYgdjEyLjgiIC8+CiAgICA8cGF0aCBkPSJtIDQxLjYsMTA4IGgxMi44IiAvPgogIDwvZz4KCiAgPGcgY2xhc3M9Inpvb20iPgogICAgPGNpcmNsZSByPSIxNSIgY3g9IjgwIiBjeT0iMTA4IiAvPgogICAgPHBhdGggZD0ibSA3My42LDEwOCBoMTIuOCIgLz4KICA8L2c+Cjwvc3ZnPgo=";
+
 let bridge = window.AstrBotPluginPage;
 // 工具栏「启用」开关图标：运行时按启用状态切换（data URI，避免 401）。
 const toolbarCheckImg = $("enabledCheck").nextElementSibling;
@@ -486,6 +491,46 @@ function defineBlocks() {
       output: null,
       colour: 330,
     },
+    {
+      type: "blocky_tool",
+      message0: "AI 工具名称 %1",
+      args0: [
+        {
+          type: "field_input",
+          name: "NAME",
+          text: "my_tool",
+          spellcheck: false,
+        },
+      ],
+      message1: "使用时机（给 AI 看）%1",
+      args1: [
+        {
+          type: "field_input",
+          name: "DESC",
+          text: "当用户询问……时使用",
+          spellcheck: false,
+        },
+      ],
+      message2: "当 AI 调用时执行 %1",
+      args2: [{ type: "input_statement", name: "DO" }],
+      message3: "将返回值返回给 AI %1",
+      args3: [{ type: "field_checkbox", name: "RETURN", checked: true }],
+      previousStatement: null,
+      nextStatement: null,
+      colour: 210,
+      tooltip:
+        "注册一个 AI 工具：AI 会根据「使用时机」描述决定何时调用它。块内可放任意积木；勾选「将返回值返回给 AI」后，块内「设置工具返回值」的内容会作为工具结果交给 AI。请放在画布（不与其他积木相连），AI 回答块会自动把本工具提供给 AI。",
+    },
+    {
+      type: "blocky_tool_return",
+      message0: "设置工具返回值 %1",
+      args0: [{ type: "input_value", name: "VALUE" }],
+      previousStatement: null,
+      nextStatement: null,
+      colour: 90,
+      tooltip:
+        "把该值作为本次工具调用的结果返回给 AI（需放在「AI 工具」块内部）。",
+    },
   ]);
 
   /* ---------- JS 自定义块（含弹窗配置/动态输入） ---------- */
@@ -735,6 +780,98 @@ function registerPythonGenerator() {
     const key = py.valueToCode(block, "KEY", py.ORDER_NONE) || "''";
     return [`_blk.dict_get(${dictExpr}, ${key})`, py.ORDER_FUNCTION_CALL];
   };
+
+  // 「AI 工具」块：把函数体包成独立 async def，再调用 _blk.tool 注册。
+  // 块与块之间用唯一 id 命名函数，避免重名；name/desc 用引号安全转义。
+  py.forBlock["blocky_tool"] = function (block) {
+    const name = block.getFieldValue("NAME") || "";
+    const desc = block.getFieldValue("DESC") || "";
+    const returnFlag = block.getFieldValue("RETURN") === "TRUE";
+    const target = block.getInputTargetBlock("DO");
+    let body = "";
+    if (target) {
+      body = py.blockToCode(target);
+    }
+    const fnName = "blk_tool_" + String(block.id || "t").replace(/[^A-Za-z0-9_]/g, "_");
+    return (
+      "async def " +
+      fnName +
+      "():\n" +
+      indentCode(body) +
+      "_blk.tool(" +
+      quotePython(name) +
+      ", " +
+      quotePython(desc) +
+      ", " +
+      fnName +
+      ", " +
+      (returnFlag ? "True" : "False") +
+      ")\n"
+    );
+  };
+
+  py.forBlock["blocky_tool_return"] = function (block) {
+    const val = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
+    return "_blk.tool_return(" + val + ")\n";
+  };
+}
+
+/* ---------- 收纳盒（trashcan）常驻开关 ---------- */
+const TRASHCAN_KEY = "blocky_trashcan";
+let trashcanToggleBtn = null; // 工具箱底部追加的「收纳盒开关」HTML 按钮
+
+function trashcanVisible() {
+  return localStorage.getItem(TRASHCAN_KEY) !== "off";
+}
+
+function setTrashcanVisible(on) {
+  localStorage.setItem(TRASHCAN_KEY, on ? "on" : "off");
+  if (workspace && workspace.trashcan && workspace.trashcan.svgGroup) {
+    workspace.trashcan.svgGroup.style.display = on ? "" : "none";
+  }
+  if (trashcanToggleBtn) {
+    trashcanToggleBtn.textContent = on ? "隐藏收纳盒" : "显示收纳盒";
+  }
+}
+
+function addTrashcanToggle() {
+  if (!workspace) return;
+  const container = document.querySelector(".blocklyToolbox");
+  if (!container || container.querySelector(".blocky-trashcan-toggle")) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "blocky-trashcan-toggle btn btn-sm btn-ghost";
+  btn.title = "显示/隐藏画布右上角的收纳盒（拖入删除区域）";
+  btn.addEventListener("click", () => {
+    setTrashcanVisible(!trashcanVisible());
+  });
+  container.appendChild(btn);
+  trashcanToggleBtn = btn;
+}
+
+function patchTrashcanSprites() {
+  // Blockly 内部用 <image href="…/sprites.svg"> 渲染垃圾桶图标，插件页该请求
+  // 不带 asset_token 会 401，这里把图标引用替换为内嵌 data URI。
+  if (!workspace || !workspace.trashcan || !workspace.trashcan.svgGroup) return;
+  const images = workspace.trashcan.svgGroup.querySelectorAll("image");
+  const XLinkNS = "http://www.w3.org/1999/xlink";
+  for (const img of images) {
+    const href = img.getAttribute("href") || "";
+    if (href.indexOf("sprites.svg") !== -1) img.setAttribute("href", IMG_SPRITES);
+    const xlink = img.getAttributeNS(XLinkNS, "href") || "";
+    if (xlink.indexOf("sprites.svg") !== -1) {
+      img.setAttributeNS(XLinkNS, "href", IMG_SPRITES);
+    }
+  }
+}
+
+function enableCommentMenu() {
+  // 注册右键菜单的「新建注释」（工作区空白处）与「添加/删除注释」（块上）。
+  // 公开 API：Blockly.ContextMenuItems.registerCommentOptions()
+  const items = (Blockly && Blockly.ContextMenuItems) || {};
+  if (typeof items.registerCommentOptions === "function") {
+    items.registerCommentOptions();
+  }
 }
 
 function initWorkspace(isDark) {
@@ -751,10 +888,18 @@ function initWorkspace(isDark) {
       minScale: 0.3,
       scaleSpeed: 1.1,
     },
-    trashcan: false,
+    trashcan: true,
+    comments: true,
     scrollbars: true,
     sounds: false,
   });
+  // 收纳盒常驻开关：默认开启；关闭后垃圾桶不再显示，拖拽到角落不会误删。
+  addTrashcanToggle();
+  patchTrashcanSprites();
+  setTrashcanVisible(trashcanVisible());
+  // 工作区右键菜单「新建注释」：Blockly 默认只注册块上的注释菜单项
+  // （blockComment），工作区空白处的「新建注释」需要显式注册。
+  enableCommentMenu();
   workspace.addChangeListener((e) => {
     if (loading) return;
     // UI 类事件（主题切换 THEME_CHANGE、选中、视图变化等）不代表内容被修改，
@@ -961,19 +1106,28 @@ function applyEditorMode(mode) {
 function generateCode() {
   try {
     // 每个事件入口积木各生成一个独立的事件分支；画布上未连接的游离块不参与
-    // 生成，避免游离的「返回消息」等块被意外执行。
+    // 生成，避免游离的「返回消息」等块被意外执行。例外：游离的「AI 工具」块
+    // 是合法用法——它会生成工具定义并注册到全局，供事件分支中的「AI 回答」块使用。
     const blocks = workspace.getTopBlocks(true);
     const entries = blocks.filter((b) => EVENT_BLOCK_MAP[b.type]);
+    const toolBlocks = blocks.filter((b) => b.type === "blocky_tool");
     Blockly.Python.init(workspace);
+    const parts = [];
+    for (const t of toolBlocks) {
+      const s = Blockly.Python.blockToCode(t, true);
+      if (s && s.trim()) parts.push(s);
+    }
     if (entries.length) {
-      return (
+      parts.push(
         entries
           .map((b) => Blockly.Python.blockToCode(b, true))
           .filter((s) => s && s.trim())
-          .join("\n") || ""
+          .join("\n"),
       );
+    } else if (!toolBlocks.length) {
+      return Blockly.Python.workspaceToCode(workspace);
     }
-    return Blockly.Python.workspaceToCode(workspace);
+    return parts.join("\n");
   } catch (err) {
     console.error("[blocky] 积木代码生成失败:", err);
     return $("codeEditor").value || "";
