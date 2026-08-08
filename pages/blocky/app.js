@@ -825,6 +825,7 @@ let _origCloseLid = null; // 保存原始 trashcan.closeLid
 let _origCloseFlyout = null; // 保存原始 trashcan.closeFlyout
 let _origToolboxFlyoutHide = null; // 保存原始 toolbox flyout.hide
 let _origClearSelection = null; // 保存原始 toolbox.clearSelection
+let _toggleFromMouse = false; // 防止鼠标触发的 change 与 mouseup 重复处理
 
 function trashcanVisible() {
   try {
@@ -881,14 +882,12 @@ function selectFirstToolboxCategory() {
 }
 
 function setTrashcanVisible(on) {
-  const wasOn = trashcanVisible(); // 读取 localStorage 旧值（尚未更新）
+  const wasOn = trashcanVisible();
   try {
     localStorage.setItem(TRASHCAN_KEY, on ? "on" : "off");
   } catch {
-    // 插件页运行在沙箱 iframe 中且无 allow-same-origin，localStorage 不可用，静默降级
   }
   patchSticky(on);
-  // 工具箱分类选中/清除操作延迟到下一轮事件循环，确保与鼠标事件处理时序不冲突
   if (on !== wasOn) {
     setTimeout(() => {
       if (on) {
@@ -916,9 +915,16 @@ function addTrashcanToggle() {
   const label = document.createElement("label");
   label.className = "blocky-trashcan-toggle";
   label.title = "常驻模式：开启后收纳盒与工具箱弹出面板不会因点击工作区而自动关闭";
-  // 阻止 mousedown 冒泡到工具箱触发 clearSelection，避免干扰常驻状态切换
+  // 鼠标切换时只阻止冒泡，不处理分类选中；松开鼠标后延迟处理
   label.addEventListener("mousedown", (e) => {
+    _toggleFromMouse = true;
     e.stopPropagation();
+  });
+  label.addEventListener("mouseup", () => {
+    setTimeout(() => {
+      _toggleFromMouse = false;
+      setTrashcanVisible(input.checked);
+    }, 0);
   });
   const labelSpan = document.createElement("span");
   labelSpan.className = "trashcan-label";
@@ -929,7 +935,9 @@ function addTrashcanToggle() {
   const input = document.createElement("input");
   input.type = "checkbox";
   input.checked = trashcanVisible();
+  // 键盘（Tab+Space）触发的 change 正常处理，鼠标触发的 skip（由 mouseup 处理）
   input.addEventListener("change", () => {
+    if (_toggleFromMouse) return;
     setTrashcanVisible(input.checked);
   });
   const img = document.createElement("img");
