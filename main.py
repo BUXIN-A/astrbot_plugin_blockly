@@ -131,7 +131,9 @@ class BlockyPlugin(Star):
         kind = resolve_event_kind(event)
         if kind == "message":
             message = (event.message_str or "").strip()
-            if not message or self._is_skipped(message):
+            # 图片/表情/@/语音等消息 message_str 为空文本，不能因此跳过：
+            # 是否处理交给触发条件与消息属性过滤（event_attr）。
+            if message and self._is_skipped(message):
                 return
             if self.config.get("admin_only_programs") and not event.is_admin():
                 return
