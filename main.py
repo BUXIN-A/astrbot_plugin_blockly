@@ -38,7 +38,9 @@ except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
     from blocky.runtime import run_program, simulate_program
 
 PLUGIN_NAME = "astrbot_plugin_blocky"
-DEFAULT_PRIORITY = 100
+# 监听优先级：远高于第三方插件默认值（0），仅次于 AstrBot 内置插件（maxsize）。
+# 保证本插件最先处理消息，这样「返回消息/停止事件传播」劫持事件后其他插件不会再收到该消息。
+DEFAULT_PRIORITY = 1000
 
 # Web API 更新时允许写入的字段（白名单，避免覆盖内部字段）
 UPDATABLE_FIELDS = (
