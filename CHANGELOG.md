@@ -2,6 +2,11 @@
 
 本插件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循语义化版本。
 
+## [v0.6.1] - 2026-08-09
+
+### 新增
+- **声明支持平台**：metadata.yaml 新增 `support_platforms` 字段，声明插件仅支持 OneBot（`aiocqhttp`）与 QQ 官方机器人（`qq_official`、`qq_official_webhook`）平台，用于 WebUI 插件页展示。
+
 ## [v0.6.0] - 2026-08-09
 
 ### 变更
