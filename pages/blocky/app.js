@@ -364,8 +364,7 @@ function registerPythonGenerator() {
   const py = Blockly.Python;
 
   py.forBlock["blocky_event"] = function (block) {
-    const code = py.statementToCode(block, "DO");
-    return [code, py.ORDER_NONE];
+    return py.statementToCode(block, "DO");
   };
 
   const simpleValueBlocks = {
@@ -384,31 +383,31 @@ function registerPythonGenerator() {
 
   py.forBlock["blocky_reply"] = function (block) {
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
-    return [`await _blk.reply(${text})\n`, py.ORDER_NONE];
+    return `await _blk.reply(${text})\n`;
   };
 
   py.forBlock["blocky_return_msg"] = function (block) {
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
-    return [`await _blk.return_msg(${text})\n`, py.ORDER_NONE];
+    return `await _blk.return_msg(${text})\n`;
   };
 
-  py.forBlock["blocky_forward"] = () => ["_blk.forward()\n", py.ORDER_NONE];
-  py.forBlock["blocky_stop"] = () => ["_blk.stop()\n", py.ORDER_NONE];
+  py.forBlock["blocky_forward"] = () => "_blk.forward()\n";
+  py.forBlock["blocky_stop"] = () => "_blk.stop()\n";
 
   py.forBlock["blocky_send"] = function (block) {
     const session = py.valueToCode(block, "SESSION", py.ORDER_NONE) || "''";
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
-    return [`await _blk.send(${session}, ${text})\n`, py.ORDER_NONE];
+    return `await _blk.send(${session}, ${text})\n`;
   };
 
   py.forBlock["blocky_sleep"] = function (block) {
     const ms = block.getFieldValue("MS") || "0";
-    return [`await _blk.sleep(${ms})\n`, py.ORDER_NONE];
+    return `await _blk.sleep(${ms})\n`;
   };
 
   py.forBlock["blocky_log"] = function (block) {
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
-    return [`_blk.log(${text})\n`, py.ORDER_NONE];
+    return `_blk.log(${text})\n`;
   };
 
   py.forBlock["blocky_chat"] = function (block) {
@@ -685,6 +684,7 @@ function generateCode() {
   try {
     return Blockly.Python.workspaceToCode(workspace);
   } catch (err) {
+    console.error("[blocky] 积木代码生成失败:", err);
     return $("codeEditor").value || "";
   }
 }
