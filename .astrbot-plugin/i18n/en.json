@@ -1,0 +1,12 @@
+{
+  "plugin": {
+    "name": "Blocky Visual Programming",
+    "description": "Program AstrBot online with Blockly blocks: intercept/forward messages and control AstrBot."
+  },
+  "pages": {
+    "blocky": {
+      "title": "Blocky Visual Programming",
+      "description": "Create programs with Blockly blocks (or raw Python) to control AstrBot."
+    }
+  }
+}

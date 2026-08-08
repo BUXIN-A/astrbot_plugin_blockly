@@ -1,0 +1,479 @@
+"""Blocky 可视化编程插件主入口。
+
+本插件为 AstrBot 提供可视化编程能力：
+- 使用 Blockly 积木（或直接编写 Python）创建"程序"；
+- 监听全部消息事件，命中触发条件的程序会被执行（可回复/劫持消息，也可放行给 AstrBot）；
+- 通过插件 Pages 提供独立的 WebUI 编辑器；
+- 通过 /blocky 聊天指令提供轻量的程序管理能力。
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
+
+from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.star import Context, Star
+from astrbot.api.web import error_response, file_response, json_response, request
+from astrbot.core.star.filter.command import GreedyStr
+from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
+
+try:  # AstrBot 以 data.plugins.<name>.main 的包形式加载插件
+    from .blocky.manager import BlockyManager
+    from .blocky.program import (
+        CONTENT_BLOCKLY,
+        MODE_FORWARD,
+        MODE_RETURN,
+        BlockyProgram,
+    )
+    from .blocky.runtime import run_program, simulate_program
+except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
+    from blocky.manager import BlockyManager
+    from blocky.program import (
+        CONTENT_BLOCKLY,
+        MODE_FORWARD,
+        MODE_RETURN,
+        BlockyProgram,
+    )
+    from blocky.runtime import run_program, simulate_program
+
+PLUGIN_NAME = "astrbot_plugin_blocky"
+DEFAULT_PRIORITY = 100
+
+# Web API 更新时允许写入的字段（白名单，避免覆盖内部字段）
+UPDATABLE_FIELDS = (
+    "name",
+    "description",
+    "enabled",
+    "mode",
+    "content_type",
+    "workspace",
+    "code",
+    "trigger",
+    "priority",
+    "timeout",
+)
+
+
+class BlockyPlugin(Star):
+    def __init__(self, context: Context, config: dict | None = None) -> None:
+        super().__init__(context)
+        self.config = config or {}
+        plugin_name = getattr(self, "name", None) or PLUGIN_NAME
+        data_dir = Path(get_astrbot_plugin_data_path()) / plugin_name
+        self.manager = BlockyManager(data_dir)
+        self._register_web_apis()
+
+    # ---------- 生命周期 ----------
+
+    async def initialize(self) -> None:
+        """插件激活时调用：应用配置的监听优先级并记录加载状态。"""
+        self._apply_config_priority()
+        self.logger.info(
+            "Blocky 插件初始化完成，已加载 %d 个程序",
+            len(self.manager.list_programs()),
+        )
+
+    async def terminate(self) -> None:
+        """插件禁用/重载时调用。"""
+
+    def _apply_config_priority(self) -> None:
+        """将配置中的监听优先级写入本插件的事件监听器。
+
+        装饰器在类定义时求值，此时还无法读取配置，因此在插件激活后手动覆盖。
+        """
+        try:
+            from astrbot.core.star.star_handler import star_handlers_registry
+
+            priority = int(self.config.get("priority") or DEFAULT_PRIORITY)
+            module_path = self.__class__.__module__
+            for handler in star_handlers_registry.get_handlers_by_module_name(
+                module_path
+            ):
+                handler.extras_configs["priority"] = priority
+            star_handlers_registry._handlers.sort(
+                key=lambda h: -h.extras_configs.get("priority", 0),
+            )
+        except Exception as exc:  # noqa: BLE001 - 不因优先级调整失败而阻塞插件启动
+            self.logger.warning("应用消息监听优先级失败：%s", exc)
+
+    # ---------- 消息监听 ----------
+
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=DEFAULT_PRIORITY)
+    async def on_message(self, event: AstrMessageEvent) -> None:
+        """监听全部消息，执行所有命中触发条件的已启用程序。"""
+        if not self._plugin_enabled():
+            return
+        message = (event.message_str or "").strip()
+        if not message or self._is_skipped(message):
+            return
+        if self.config.get("admin_only_programs") and not event.is_admin():
+            return
+        programs = [p for p in self.manager.enabled_programs() if p.matches(event)]
+        if not programs:
+            return
+        await self._run_programs(event, programs)
+
+    async def _run_programs(
+        self,
+        event: AstrMessageEvent,
+        programs: list[BlockyProgram],
+    ) -> None:
+        """按优先级依次执行程序；返回模式或显式 stop 后停止执行后续程序。"""
+        for program in programs:
+            timeout = program.timeout or self._default_timeout()
+            try:
+                await run_program(program, self.context, event, timeout=timeout)
+                program.mark_run()
+            except asyncio.TimeoutError:
+                program.mark_run(error="执行超时", success=False)
+                self.logger.warning(
+                    "Blocky 程序 %s(%s) 执行超时", program.name, program.id
+                )
+            except Exception as exc:  # noqa: BLE001 - 单个程序出错不影响其他程序
+                program.mark_run(error=str(exc), success=False)
+                self.logger.error(
+                    "Blocky 程序 %s(%s) 执行出错：%s", program.name, program.id, exc
+                )
+            try:
+                await self.manager.update(program)
+            except Exception as exc:  # noqa: BLE001
+                self.logger.warning("保存程序运行状态失败：%s", exc)
+            if event.is_stopped() or program.mode == MODE_RETURN:
+                break
+
+    # ---------- /blocky 聊天指令（仅管理员） ----------
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("blocky", alias={"blk"})
+    async def blocky(self, event: AstrMessageEvent, args: GreedyStr = "") -> None:
+        """Blocky 程序管理指令。"""
+        parts = (args or "").strip().split()
+        if not parts:
+            yield event.plain_result(self._command_help())
+            return
+        action, *rest = parts
+        try:
+            if action == "list":
+                yield event.plain_result(self._format_program_list())
+            elif action == "on":
+                yield event.plain_result(
+                    await self._set_enabled(rest[0] if rest else "", True)
+                )
+            elif action == "off":
+                yield event.plain_result(
+                    await self._set_enabled(rest[0] if rest else "", False)
+                )
+            elif action == "new":
+                yield event.plain_result(await self._command_new(" ".join(rest)))
+            elif action == "delete":
+                yield event.plain_result(
+                    await self._command_delete(rest[0] if rest else "")
+                )
+            elif action == "reload":
+                self.manager.load()
+                yield event.plain_result("已从磁盘重新加载全部程序。")
+            else:
+                yield event.plain_result(self._command_help())
+        except Exception as exc:
+            self.logger.exception("执行 /blocky 指令失败")
+            yield event.plain_result(f"执行出错：{exc}")
+
+    def _command_help(self) -> str:
+        """返回 /blocky 指令帮助文本。"""
+        return (
+            "Blocky 可视化编程指令：\n"
+            "/blocky list - 列出所有程序\n"
+            "/blocky new <名称> - 新建程序\n"
+            "/blocky on <id> - 开启程序\n"
+            "/blocky off <id> - 关闭程序\n"
+            "/blocky delete <id> - 删除程序\n"
+            "/blocky reload - 从磁盘重新加载\n\n"
+            "更完整的功能请使用 WebUI（插件详情页打开 Blocky 页面）。"
+        )
+
+    def _format_program_list(self) -> str:
+        """格式化程序列表文本。"""
+        programs = self.manager.list_programs()
+        if not programs:
+            return "暂无程序。使用 /blocky new <名称> 创建，或到 WebUI 编辑。"
+        lines = ["Blocky 程序列表："]
+        for program in programs:
+            state = "开" if program.enabled else "关"
+            mode = "返回" if program.mode == MODE_RETURN else "传出"
+            lines.append(
+                f"[{state}] {program.id} | {mode} | {program.name}"
+                + (f"（{program.last_error}）" if program.last_error else "")
+            )
+        return "\n".join(lines)
+
+    async def _set_enabled(self, pid: str, enabled: bool) -> str:
+        """开启或关闭指定程序。"""
+        program = self.manager.get(pid)
+        if not program:
+            return f"未找到程序：{pid}。可使用 /blocky list 查看。"
+        program.enabled = enabled
+        await self.manager.update(program)
+        return f"程序 {program.name} 已{'开启' if enabled else '关闭'}。"
+
+    async def _command_new(self, name: str) -> str:
+        """新建一个传出消息模式的程序。"""
+        name = (name or "").strip() or "未命名程序"
+        program = await self.manager.create(name=name)
+        return f"已创建程序：{program.name}（id: {program.id}）。请到 WebUI 编辑逻辑。"
+
+    async def _command_delete(self, pid: str) -> str:
+        """删除指定程序。"""
+        if not await self.manager.delete(pid):
+            return f"未找到程序：{pid}。"
+        return f"已删除程序：{pid}。"
+
+    # ---------- Web API ----------
+
+    def _register_web_apis(self) -> None:
+        """注册插件 Web API 路由（供 Dashboard 转发调用）。"""
+        prefix = f"/{PLUGIN_NAME}"
+        ctx = self.context
+        ctx.register_web_api(
+            f"{prefix}/programs",
+            self.api_list_programs,
+            ["GET"],
+            "获取 Blocky 程序列表",
+        )
+        ctx.register_web_api(
+            f"{prefix}/programs", self.api_create_program, ["POST"], "新建 Blocky 程序"
+        )
+        ctx.register_web_api(
+            f"{prefix}/programs/<pid>",
+            self.api_get_program,
+            ["GET"],
+            "获取单个 Blocky 程序",
+        )
+        ctx.register_web_api(
+            f"{prefix}/programs/<pid>",
+            self.api_update_program,
+            ["POST"],
+            "更新 Blocky 程序",
+        )
+        ctx.register_web_api(
+            f"{prefix}/programs/<pid>/delete",
+            self.api_delete_program,
+            ["POST"],
+            "删除 Blocky 程序",
+        )
+        ctx.register_web_api(
+            f"{prefix}/programs/<pid>/duplicate",
+            self.api_duplicate_program,
+            ["POST"],
+            "复制 Blocky 程序",
+        )
+        ctx.register_web_api(
+            f"{prefix}/programs/<pid>/toggle",
+            self.api_toggle_program,
+            ["POST"],
+            "开关 Blocky 程序",
+        )
+        ctx.register_web_api(
+            f"{prefix}/programs/<pid>/test",
+            self.api_test_program,
+            ["POST"],
+            "测试运行 Blocky 程序",
+        )
+        ctx.register_web_api(
+            f"{prefix}/export", self.api_export, ["GET"], "导出全部 Blocky 程序"
+        )
+        ctx.register_web_api(
+            f"{prefix}/export/<pid>",
+            self.api_export_program,
+            ["GET"],
+            "导出单个 Blocky 程序",
+        )
+        ctx.register_web_api(
+            f"{prefix}/import", self.api_import, ["POST"], "导入 Blocky 程序（JSON）"
+        )
+        ctx.register_web_api(
+            f"{prefix}/import/file",
+            self.api_import_file,
+            ["POST"],
+            "导入 Blocky 程序（文件）",
+        )
+
+    async def api_list_programs(self) -> Any:
+        """返回全部程序（含运行统计），供前端列表渲染。"""
+        return json_response(
+            {
+                "ok": True,
+                "programs": [p.to_dict() for p in self.manager.list_programs()],
+            }
+        )
+
+    async def api_create_program(self) -> Any:
+        """新建程序。"""
+        body = await request.json(default={})
+        program = await self.manager.create(
+            name=str(body.get("name") or "未命名程序"),
+            mode=str(body.get("mode") or MODE_FORWARD),
+            content_type=str(body.get("content_type") or CONTENT_BLOCKLY),
+            workspace=body.get("workspace") or "",
+            code=body.get("code") or "",
+        )
+        return json_response({"ok": True, "program": program.to_dict()})
+
+    async def api_get_program(self, pid: str) -> Any:
+        """获取单个程序。"""
+        program = self.manager.get(pid)
+        if not program:
+            return error_response("程序不存在", status_code=404)
+        return json_response({"ok": True, "program": program.to_dict()})
+
+    async def api_update_program(self, pid: str) -> Any:
+        """更新程序（仅接受白名单字段）。"""
+        program = self.manager.get(pid)
+        if not program:
+            return error_response("程序不存在", status_code=404)
+        body = await request.json(default={})
+        data = program.to_dict()
+        for key in body:
+            if key in UPDATABLE_FIELDS:
+                data[key] = body[key]
+        data["updated_at"] = time.time()
+        updated = BlockyProgram.from_dict(data)
+        await self.manager.update(updated)
+        return json_response({"ok": True, "program": updated.to_dict()})
+
+    async def api_delete_program(self, pid: str) -> Any:
+        """删除程序。"""
+        if not await self.manager.delete(pid):
+            return error_response("程序不存在", status_code=404)
+        return json_response({"ok": True})
+
+    async def api_duplicate_program(self, pid: str) -> Any:
+        """复制程序。"""
+        clone = await self.manager.duplicate(pid)
+        if not clone:
+            return error_response("程序不存在", status_code=404)
+        return json_response({"ok": True, "program": clone.to_dict()})
+
+    async def api_toggle_program(self, pid: str) -> Any:
+        """开关程序；不带 enabled 时切换当前状态。"""
+        program = self.manager.get(pid)
+        if not program:
+            return error_response("程序不存在", status_code=404)
+        body = await request.json(default={})
+        if "enabled" in body:
+            program.enabled = bool(body["enabled"])
+        else:
+            program.enabled = not program.enabled
+        await self.manager.update(program)
+        return json_response({"ok": True, "enabled": program.enabled})
+
+    async def api_test_program(self, pid: str) -> Any:
+        """在模拟事件上运行程序，返回测试结果。"""
+        program = self.manager.get(pid)
+        if not program:
+            return error_response("程序不存在", status_code=404)
+        body = await request.json(default={})
+        result = await simulate_program(
+            program,
+            message=str(body.get("message") or ""),
+            timeout=program.timeout or self._default_timeout(),
+            chat_responses=body.get("chat_responses") or None,
+            is_admin=bool(body.get("is_admin")),
+            is_private=bool(body.get("is_private")),
+        )
+        return json_response({"ok": True, **result})
+
+    async def api_export(self) -> Any:
+        """导出全部程序为 JSON 文件。"""
+        data = self._export_data(self.manager.list_programs())
+        return self._json_file_response(data, "blocky_programs.json")
+
+    async def api_export_program(self, pid: str) -> Any:
+        """导出单个程序为 JSON 文件。"""
+        program = self.manager.get(pid)
+        if not program:
+            return error_response("程序不存在", status_code=404)
+        data = self._export_data([program])
+        return self._json_file_response(
+            data, f"blocky_{program.name}_{program.id}.json"
+        )
+
+    async def api_import(self) -> Any:
+        """从 JSON 导入程序（body 为导出格式或程序对象列表）。"""
+        body = await request.json(default={})
+        return self._import_data(body)
+
+    async def api_import_file(self) -> Any:
+        """从上传的文件导入程序（multipart 字段名：file）。"""
+        files = await request.files()
+        upload = files.get("file")
+        if not upload:
+            return error_response("缺少上传文件（字段名：file）", status_code=400)
+        try:
+            raw = await upload.read()
+            body = json.loads(raw.decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            return error_response(f"文件解析失败：{exc}", status_code=400)
+        return self._import_data(body)
+
+    def _export_data(self, programs: list[BlockyProgram]) -> dict:
+        """构造导出的 JSON 结构。"""
+        return {
+            "format": "astrbot_plugin_blocky",
+            "version": 1,
+            "exported_at": time.time(),
+            "programs": [p.to_dict() for p in programs],
+        }
+
+    def _json_file_response(self, data: dict, filename: str) -> Any:
+        """将 JSON 数据写为临时文件并返回下载响应。"""
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False, encoding="utf-8"
+        ) as fp:
+            json.dump(data, fp, ensure_ascii=False, indent=2)
+            tmp_path = fp.name
+        return file_response(
+            tmp_path,
+            filename=filename,
+            content_type="application/json",
+        )
+
+    async def _import_data(self, body: Any) -> Any:
+        """解析并导入导出数据；同 id 程序将覆盖，否则新建。"""
+        programs_data = body.get("programs") if isinstance(body, dict) else body
+        if not isinstance(programs_data, list) or not programs_data:
+            return error_response("导入数据格式不正确", status_code=400)
+        count = 0
+        for item in programs_data:
+            if not isinstance(item, dict):
+                continue
+            program = BlockyProgram.from_dict(item)
+            program.updated_at = time.time()
+            await self.manager.update(program)
+            count += 1
+        return json_response({"ok": True, "imported": count})
+
+    # ---------- 内部工具 ----------
+
+    def _plugin_enabled(self) -> bool:
+        """是否启用插件总开关。"""
+        return bool(self.config.get("enabled", True))
+
+    def _is_skipped(self, message: str) -> bool:
+        """是否命中不触发程序的消息前缀。"""
+        for line in str(self.config.get("skip_prefixes", "")).splitlines():
+            prefix = line.strip()
+            if prefix and message.startswith(prefix):
+                return True
+        return False
+
+    def _default_timeout(self) -> float:
+        """程序默认执行超时（秒）。"""
+        try:
+            return max(1, int(self.config.get("default_timeout") or 30))
+        except (TypeError, ValueError):
+            return 30.0

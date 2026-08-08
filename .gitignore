@@ -1,0 +1,18 @@
+__pycache__/
+*.py[codz]
+*$py.class
+
+.pytest_cache/
+.ruff_cache/
+.coverage
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+.idea/
+.vscode/
+
+# AstrBot 运行数据（程序文件由插件在 data/plugin_data 下管理，不在仓库内）
+data/

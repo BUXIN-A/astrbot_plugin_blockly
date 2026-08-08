@@ -1,0 +1,12 @@
+{
+  "plugin": {
+    "name": "Blocky 可视化编程",
+    "description": "使用 Blockly 积木在线编程，拦截/传递消息，操控 AstrBot。"
+  },
+  "pages": {
+    "blocky": {
+      "title": "Blocky 可视化编程",
+      "description": "使用 Blockly 积木（或直接写 Python）编写程序，操控 AstrBot。"
+    }
+  }
+}

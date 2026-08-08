@@ -1,0 +1,30 @@
+{
+  "enabled": {
+    "description": "总开关：是否运行 Blocky 程序",
+    "type": "bool",
+    "default": true
+  },
+  "priority": {
+    "description": "消息监听优先级（越大越先执行）",
+    "type": "int",
+    "default": 100,
+    "hint": "Blocky 的事件监听器优先级。默认 100，会在绝大多数其他插件/指令之前执行。"
+  },
+  "default_timeout": {
+    "description": "程序默认执行超时时间（秒）",
+    "type": "int",
+    "default": 30,
+    "hint": "每个程序单独执行的最长时间。可在程序编辑器中单独覆盖。"
+  },
+  "skip_prefixes": {
+    "description": "不触发程序的消息前缀（换行分隔）",
+    "type": "text",
+    "default": "/blocky\n/help",
+    "hint": "以这些前缀开头的消息不会触发任何 Blocky 程序，用于避免拦截管理指令。每行一个。"
+  },
+  "admin_only_programs": {
+    "description": "所有程序仅对管理员消息生效",
+    "type": "bool",
+    "default": false
+  }
+}
