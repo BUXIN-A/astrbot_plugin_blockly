@@ -533,37 +533,82 @@ body {
 }
 
 /* ---------- Blockly 积木面板 ---------- */
-/* 工具箱分类文字：新版 Blockly 用 HTML 渲染 label，需用 color 而非 fill */
-.blocklyTreeLabel {
+/* 工具箱分类文字：新版 Blockly（simple toolbox）用 HTML span 渲染分类文字
+   （blocklyToolboxCategoryLabel），旧版用 SVG（blocklyTreeLabel）。
+   HTML 元素需用 color，SVG 文本需用 fill，两者都设置以保证兼容。 */
+.blocklyTreeLabel,
+.blocklyToolboxCategoryLabel {
   color: #000;
+  fill: #000;
   font-weight: 600;
 }
 
-html[data-theme="dark"] .blocklyTreeLabel {
+html[data-theme="dark"] .blocklyTreeLabel,
+html[data-theme="dark"] .blocklyToolboxCategoryLabel {
   color: #e8eaf0;
+  fill: #e8eaf0;
 }
 
-/* 深色主题：Blockly 工具箱/flyout 默认背景偏浅，需一并加深，否则浅色分类
-   文字与背景对比度不足（文字本身颜色没问题）。 */
-html[data-theme="dark"] .blocklyToolboxDiv {
-  background-color: #16181d;
+/* 工具箱（收纳盒）背景与分类行 */
+.blocklyToolbox,
+.blocklyToolboxDiv {
+  background-color: var(--panel);
   border-right: 1px solid var(--border);
 }
 
-html[data-theme="dark"] .blocklyTreeRow {
+html[data-theme="dark"] .blocklyToolbox,
+html[data-theme="dark"] .blocklyToolboxDiv {
+  background-color: #16181d;
+}
+
+.blocklyToolboxCategory,
+.blocklyTreeRow {
   background: transparent;
 }
 
-html[data-theme="dark"] .blocklyTreeRow.selected {
-  background: #1e2c47;
+.blocklyToolboxCategory:hover,
+.blocklyTreeRow:hover {
+  background-color: var(--bg);
 }
 
+html[data-theme="dark"] .blocklyToolboxCategory:hover,
+html[data-theme="dark"] .blocklyTreeRow:hover {
+  background-color: #1f232b;
+}
+
+.blocklyToolboxCategoryContainer[aria-selected="true"] .blocklyToolboxCategory,
+.blocklyTreeRow.selected {
+  background-color: var(--primary-soft);
+}
+
+html[data-theme="dark"]
+  .blocklyToolboxCategoryContainer[aria-selected="true"]
+  .blocklyToolboxCategory,
+html[data-theme="dark"] .blocklyTreeRow.selected {
+  background-color: #1e2c47;
+}
+
+/* 工作区（积木画布）背景 */
+html[data-theme="dark"] .blocklySvg {
+  background-color: #16181d;
+}
+
+/* 弹出积木面板（flyout） */
 html[data-theme="dark"] .blocklyFlyoutBackground {
   fill: #1f232b;
 }
 
 html[data-theme="dark"] .blocklyFlyoutLabelText {
   fill: #e8eaf0;
+}
+
+/* 滚动条（深色主题优化） */
+html[data-theme="dark"] .blocklyScrollbarHandle {
+  fill: #3a3f47;
+}
+
+html[data-theme="dark"] .blocklyScrollbarBackground {
+  fill: transparent;
 }
 
 /* ---------- 图标 ---------- */
