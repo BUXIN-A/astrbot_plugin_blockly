@@ -617,7 +617,7 @@ function enableEditor() {
   });
 }
 
-function loadProgram(p) {
+async function loadProgram(p) {
   currentId = p.id;
   loading = true;
   dirty = false;
@@ -657,6 +657,12 @@ function loadProgram(p) {
   renderSidebar();
   loading = false;
   window.dispatchEvent(new Event("resize"));
+
+  // 旧数据/手写导入的积木程序可能缺少已生成的 code（运行引擎只执行 code）。
+  // 有积木内容但 code 为空时，从当前工作区重新生成并静默保存，确保真实运行可用。
+  if (currentMode === "blockly" && !p.code && currentWorkspaceState) {
+    await saveProgram(true);
+  }
 }
 
 function applyEditorMode(mode) {

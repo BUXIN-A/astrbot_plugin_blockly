@@ -42,6 +42,17 @@ def test_empty_program_does_not_stop():
     assert result["error"] == ""
 
 
+def test_blockly_with_blocks_but_no_code_reports_error():
+    """积木程序有积木内容但缺少生成的 code 时，应给出明确错误而非静默跳过。"""
+    workspace = (
+        '{"blocks": {"languageVersion": 0, '
+        '"blocks": [{"type": "blocky_event"}]}}'
+    )
+    program = BlockyProgram(content_type="blockly", workspace=workspace, code="")
+    result = asyncio.run(run_sim(program, message="hi"))
+    assert result["error"] != ""
+
+
 def test_forward_block_keeps_running():
     program = BlockyProgram(code="_blk.forward()")
     result = asyncio.run(run_sim(program, message="hi"))

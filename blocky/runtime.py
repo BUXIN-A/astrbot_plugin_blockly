@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import json
 import logging
 import math
 import random
 import textwrap
 from typing import Any
 
-from .program import BlockyProgram
+from .program import CONTENT_BLOCKLY, BlockyProgram
 
 logger = logging.getLogger("astrbot_plugin_blocky")
 
@@ -330,6 +331,18 @@ class BlockyRuntime:
         return default
 
 
+def _has_blocks(workspace_json: str) -> bool:
+    """判断积木工作区 JSON 中是否含有实际积木。"""
+    if not workspace_json:
+        return False
+    try:
+        data = json.loads(workspace_json)
+    except (TypeError, ValueError):
+        return False
+    blocks = (data.get("blocks") or {}).get("blocks") or []
+    return bool(blocks)
+
+
 def wrap_code(code: str, func_name: str = "_blk_run") -> str:
     """将积木生成的代码包装为异步函数体。"""
     body = textwrap.indent(code or "", "    ", predicate=lambda line: line.strip())
@@ -367,6 +380,14 @@ async def run_program(
     """
     code = (program.code or "").strip()
     if not code:
+        if (
+            program.content_type == CONTENT_BLOCKLY
+            and _has_blocks(program.workspace)
+        ):
+            raise RuntimeError(
+                "积木程序缺少已生成的代码（code 为空）：请在 WebUI 打开该程序并保存一次，"
+                "或重新导入包含 code 的数据"
+            )
         return
     source = wrap_code(code)
     ns = _build_namespace(context, event, program)
