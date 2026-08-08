@@ -5,7 +5,7 @@
 ## [v0.5.1] - 2026-08-08
 
 ### 修复
-- **收纳盒常驻开关互动彻底修复**：Blockly 工具箱处理 `mousedown` 事件，此前 `stopPropagation` 绑在 `click` 上为时已晚，`mousedown` 早已冒泡到工具箱触发 `clearSelection`，导致常驻开启时 flyout 被关闭、关闭时 flyout 被打开。改为在 `mousedown` 上 `stopPropagation`，从源头阻断事件冒泡。
+- **收纳盒常驻开关互动不完全修复**：Blockly 工具箱处理 `mousedown` 事件，此前 `stopPropagation` 绑在 `click` 上为时已晚，`mousedown` 早已冒泡到工具箱触发 `clearSelection`，导致常驻开启时 flyout 被关闭、关闭时 flyout 被打开。改为在 `mousedown` 上 `stopPropagation`，从源头阻断事件冒泡。
 - **鼠标切换时不再同步处理分类选中**：`change` 事件在鼠标释放过程中即触发，此时工具箱仍在处理鼠标事件，`patchSticky` 覆盖/恢复的方法与工具箱已处理的状态不一致。改为 `mousedown` 设 `_toggleFromMouse` 标志，`change` 检测到标志后跳过（由 `mouseup` + `setTimeout(0)` 统一处理），确保只有鼠标完全松开后才处理分类选中/清除，彻底解决长按/快速点击导致的状态紊乱。
 
 ## [v0.5.0] - 2026-08-08
