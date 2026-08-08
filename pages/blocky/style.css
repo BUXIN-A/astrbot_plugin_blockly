@@ -442,6 +442,84 @@ body {
   padding: 1px 4px;
 }
 
+/* ---------- 格式化文本创建弹窗 ---------- */
+.fmt-wide {
+  width: 640px;
+  max-width: 92vw;
+}
+
+.fmt-wrap {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.fmt-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.fmt-left .form-row-label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.fmt-textarea {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.6;
+  min-height: 180px;
+}
+
+.fmt-right {
+  width: 180px;
+  flex: 0 0 180px;
+}
+
+.fmt-right .form-row-label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.fmt-tag-add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.fmt-tag-add .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.fmt-tag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.fmt-tag {
+  text-align: left;
+  background: var(--primary-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.fmt-tag:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
 /* ---------- inputs & buttons ---------- */
 .input,
 .select {

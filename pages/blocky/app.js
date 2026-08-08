@@ -18,6 +18,13 @@ const IMG_CHECK =
 const IMG_CHECK_OK =
   "data:image/png;base64,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";
 
+// 块配置按钮（齿轮）图标：SVG data URI，避免图片文件 401。
+const IMG_GEAR =
+  "data:image/svg+xml;charset=utf-8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+  );
+
 let bridge = window.AstrBotPluginPage;
 // 工具栏「启用」开关图标：运行时按启用状态切换（data URI，避免 401）。
 const toolbarCheckImg = $("enabledCheck").nextElementSibling;
@@ -181,6 +188,31 @@ const EVENT_ATTR_OPTIONS = [
   ["语音", "voice"],
   ["引用回复", "reply"],
 ];
+
+// 从模板文本中提取去重、保序的标签名列表（{标签}）。
+function extractTemplateTags(template) {
+  const tags = [];
+  const re = /\{([^{}]+)\}/g;
+  let m;
+  while ((m = re.exec(String(template || "")))) {
+    const tag = m[1].trim();
+    if (tag && !tags.includes(tag)) tags.push(tag);
+  }
+  return tags;
+}
+
+// 将文本转义为 Python 字符串字面量（保留换行为 \n）。
+function quotePython(text) {
+  return (
+    "'" +
+    String(text)
+      .replace(/\\/g, "\\\\")
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, "")
+      .replace(/\n/g, "\\n") +
+    "'"
+  );
+}
 
 function defineBlocks() {
   Blockly.common.defineBlocksWithJsonArray([
@@ -401,23 +433,6 @@ function defineBlocks() {
       colour: 210,
     },
     {
-      type: "blocky_chat",
-      message0: "AI 回答 %1，指定模型 %2",
-      args0: [
-        { type: "input_value", name: "PROMPT", check: "String" },
-        {
-          type: "field_input",
-          name: "MODELS",
-          text: "",
-          spellcheck: false,
-        },
-      ],
-      output: "String",
-      colour: 90,
-      tooltip:
-        "调用 AI 模型返回回答文本。「指定模型」可用逗号分隔多个 provider:model，按顺序优先、失败自动切换下一个；留空时按程序「可用模型」白名单。",
-    },
-    {
       type: "blocky_http_get",
       message0: "HTTP GET %1 请求头 %2",
       args0: [
@@ -472,6 +487,100 @@ function defineBlocks() {
       colour: 330,
     },
   ]);
+
+  /* ---------- JS 自定义块（含弹窗配置/动态输入） ---------- */
+
+  // 「AI 回答」块：「指定模型」为可多选的模型列表。
+  // 模型列表通过块级 extra state 序列化；点击齿轮按钮在弹窗中编辑。
+  Blockly.Blocks["blocky_chat"] = {
+    init: function () {
+      this.appendValueInput("PROMPT")
+        .setCheck("String")
+        .appendField("AI 回答");
+      this.models_ = [];
+      this.modelLabel_ = new Blockly.FieldLabel("指定模型：无");
+      this.appendDummyInput().appendField(this.modelLabel_);
+      this.appendDummyInput().appendField(
+        new Blockly.FieldImage(
+          IMG_GEAR,
+          18,
+          18,
+          "配置指定模型",
+          false,
+          () => this.openModels_()
+        )
+      );
+      this.setOutput(true, "String");
+      this.setColour(90);
+      this.setTooltip(
+        "调用 AI 模型返回回答文本。点击齿轮按钮添加多个 provider:model（顺序即优先级、失败自动切换下一个）；不指定时按程序「可用模型」白名单。"
+      );
+    },
+    saveExtraState: function () {
+      return { models: this.models_ };
+    },
+    loadExtraState: function (state) {
+      this.models_ = Array.isArray(state && state.models)
+        ? state.models.slice()
+        : [];
+      this.updateModelLabel_();
+    },
+    updateModelLabel_: function () {
+      if (this.modelLabel_) {
+        this.modelLabel_.setValue(
+          this.models_.length ? `指定模型（${this.models_.length} 个）` : "指定模型：无"
+        );
+      }
+    },
+    openModels_: function () {
+      openBlockModelDialog(this);
+    },
+  };
+
+  // 「格式化文本创建」块：点击齿轮按钮在弹窗中编辑多行模板与标签。
+  // 模板中的 {标签} 自动渲染为可连接文本块的输入端口。
+  Blockly.Blocks["blocky_format_text"] = {
+    init: function () {
+      this.appendDummyInput().appendField("格式化文本创建");
+      this.appendDummyInput().appendField(
+        new Blockly.FieldImage(
+          IMG_GEAR,
+          18,
+          18,
+          "编辑模板",
+          false,
+          () => this.openEditor_()
+        )
+      );
+      this.template_ = "";
+      this.setOutput(true, "String");
+      this.setColour(160);
+      this.setTooltip(
+        "创建多行模板文本，可在其中插入标签（{标签名}）。退出弹窗后每个标签自动生成一个可连接文本块的输入端口，运行时把端口内容替换进对应标签位置。"
+      );
+    },
+    saveExtraState: function () {
+      return { template: this.template_ };
+    },
+    loadExtraState: function (state) {
+      this.template_ = (state && state.template) || "";
+      this.updateShape_();
+    },
+    updateShape_: function () {
+      // 保留按钮行（index 0），移除其余输入，再按模板中的标签重建输入端口。
+      while (this.inputList.length > 1) {
+        this.inputList.pop().dispose();
+      }
+      extractTemplateTags(this.template_).forEach((tag, i) => {
+        this.appendValueInput("arg" + i)
+          .setCheck("String")
+          .appendField(tag);
+      });
+    },
+    openEditor_: function () {
+      openFormatTextDialog(this);
+    },
+  };
 }
 
 function registerPythonGenerator() {
@@ -551,11 +660,37 @@ function registerPythonGenerator() {
 
   py.forBlock["blocky_chat"] = function (block) {
     const prompt = py.valueToCode(block, "PROMPT", py.ORDER_NONE) || "''";
-    const models = (block.getFieldValue("MODELS") || "").trim();
+    const models = (block.models_ || []).join(",");
     const expr = models
       ? `await _blk.chat(${prompt}, '${models.replace(/'/g, "\\'")}')`
       : `await _blk.chat(${prompt})`;
     return [expr, py.ORDER_FUNCTION_CALL];
+  };
+
+  py.forBlock["blocky_format_text"] = function (block) {
+    const template = block.template_ || "";
+    const tags = extractTemplateTags(template);
+    if (!tags.length) {
+      return [quotePython(template), py.ORDER_ATOMIC];
+    }
+    const parts = [];
+    let last = 0;
+    const re = /\{([^{}]+)\}/g;
+    let m;
+    while ((m = re.exec(template))) {
+      if (m.index > last) {
+        parts.push(quotePython(template.slice(last, m.index)));
+      }
+      const idx = tags.indexOf(m[1].trim());
+      const val =
+        py.valueToCode(block, "arg" + idx, py.ORDER_NONE) || "''";
+      parts.push("str(" + val + ")");
+      last = m.index + m[0].length;
+    }
+    if (last < template.length) {
+      parts.push(quotePython(template.slice(last)));
+    }
+    return ["(" + parts.join(" + ") + ")", py.ORDER_FUNCTION_CALL];
   };
 
   py.forBlock["blocky_http_get"] = function (block) {
@@ -1340,6 +1475,204 @@ function bindModelModal() {
   });
 }
 
+/* ---------- AI 块「指定模型」弹窗（独立于程序级可用模型） ---------- */
+let blockModelTarget = null; // 当前正在编辑模型的 blocky_chat 块
+let blockModels = [];
+let blockModelBackup = [];
+
+function openBlockModelDialog(block) {
+  blockModelTarget = block;
+  blockModels = (block.models_ || []).slice();
+  blockModelBackup = blockModels.slice();
+  loadAvailableModels().then(() => renderBlockModelEditList());
+  openModal("blockModelModal");
+}
+
+function closeBlockModelDialog() {
+  blockModels = blockModelBackup.slice();
+  closeModal("blockModelModal");
+}
+
+function renderBlockModelEditList() {
+  const list = $("blockModelEditList");
+  list.innerHTML = "";
+  if (!blockModels.length) {
+    const hint = document.createElement("div");
+    hint.className = "modal-message";
+    hint.textContent =
+      "尚未指定模型（不限制，AI 回答使用当前会话模型或程序「可用模型」白名单）。";
+    list.appendChild(hint);
+    return;
+  }
+  blockModels.forEach((id, idx) => {
+    const row = document.createElement("div");
+    row.className = "model-edit-row";
+    const label = document.createElement("span");
+    label.className = "m-label";
+    label.textContent = modelDisplay(id);
+    label.title = id;
+    const up = document.createElement("button");
+    up.className = "icon-btn";
+    up.textContent = "▲";
+    up.title = "上移（更优先）";
+    up.disabled = idx === 0;
+    up.onclick = () => {
+      const tmp = blockModels[idx];
+      blockModels[idx] = blockModels[idx - 1];
+      blockModels[idx - 1] = tmp;
+      renderBlockModelEditList();
+    };
+    const down = document.createElement("button");
+    down.className = "icon-btn";
+    down.textContent = "▼";
+    down.title = "下移";
+    down.disabled = idx === blockModels.length - 1;
+    down.onclick = () => {
+      const tmp = blockModels[idx];
+      blockModels[idx] = blockModels[idx + 1];
+      blockModels[idx + 1] = tmp;
+      renderBlockModelEditList();
+    };
+    const remove = document.createElement("button");
+    remove.className = "icon-btn danger";
+    remove.title = "移除";
+    remove.innerHTML = `<img class="icon icon-sm" src="${IMG_DELETE}" alt="移除" />`;
+    remove.onclick = () => {
+      blockModels.splice(idx, 1);
+      renderBlockModelEditList();
+    };
+    row.append(label, up, down, remove);
+    list.appendChild(row);
+  });
+}
+
+function addBlockModel(name) {
+  name = (name || "").trim();
+  if (!name) return;
+  if (blockModels.includes(name)) {
+    showToast(`模型 ${modelDisplay(name)} 已在列表中`);
+    return;
+  }
+  blockModels.push(name);
+  renderBlockModelEditList();
+}
+
+function bindBlockModelModal() {
+  $("blockModelAdd").onclick = () => {
+    addBlockModel($("blockModelInput").value);
+    $("blockModelInput").value = "";
+  };
+  $("blockModelInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addBlockModel($("blockModelInput").value);
+      $("blockModelInput").value = "";
+    }
+  });
+  $("blockModelLoad").onclick = () => {
+    loadAvailableModels().then(() => {
+      showToast("可用模型已刷新");
+      renderBlockModelEditList();
+    });
+  };
+  $("blockModelCancel").onclick = closeBlockModelDialog;
+  $("blockModelOk").onclick = () => {
+    $("blockModelInput").value = "";
+    closeModal("blockModelModal");
+    if (blockModelTarget) {
+      blockModelTarget.models_ = blockModels.slice();
+      blockModelTarget.updateModelLabel_();
+    }
+    markDirty();
+  };
+  $("blockModelModal").addEventListener("click", (e) => {
+    if (e.target === $("blockModelModal")) closeBlockModelDialog();
+  });
+}
+
+/* ---------- 格式化文本创建弹窗 ---------- */
+let fmtBlockTarget = null; // 当前正在编辑的 blocky_format_text 块
+let fmtTags = [];
+
+function openFormatTextDialog(block) {
+  fmtBlockTarget = block;
+  $("fmtTextarea").value = block.template_ || "";
+  fmtTags = extractTemplateTags(block.template_);
+  renderFmtTagList();
+  openModal("fmtModal");
+}
+
+function renderFmtTagList() {
+  const list = $("fmtTagList");
+  list.innerHTML = "";
+  if (!fmtTags.length) {
+    const hint = document.createElement("div");
+    hint.className = "modal-message";
+    hint.textContent =
+      "尚未创建标签。点击「创建标签」，再点击标签即可插入到编辑器光标处。";
+    list.appendChild(hint);
+    return;
+  }
+  fmtTags.forEach((tag) => {
+    const chip = document.createElement("button");
+    chip.className = "fmt-tag";
+    chip.type = "button";
+    chip.textContent = "{" + tag + "}";
+    chip.title = "点击插入到编辑器光标处";
+    chip.onclick = () => insertFmtTag(tag);
+    list.appendChild(chip);
+  });
+}
+
+function addFmtTag() {
+  const name = ($("fmtTagInput").value || "").trim();
+  $("fmtTagInput").value = "";
+  if (!name) return;
+  if (/[{}]/.test(name)) {
+    showToast("标签名不能包含花括号");
+    return;
+  }
+  if (fmtTags.includes(name)) {
+    showToast("标签已存在");
+    return;
+  }
+  fmtTags.push(name);
+  renderFmtTagList();
+}
+
+function insertFmtTag(tag) {
+  const ta = $("fmtTextarea");
+  const start = ta.selectionStart ?? ta.value.length;
+  const end = ta.selectionEnd ?? ta.value.length;
+  const ins = "{" + tag + "}";
+  ta.value = ta.value.slice(0, start) + ins + ta.value.slice(end);
+  ta.focus();
+  const pos = start + ins.length;
+  ta.setSelectionRange(pos, pos);
+}
+
+function bindFmtModal() {
+  $("fmtTagAdd").onclick = addFmtTag;
+  $("fmtTagInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addFmtTag();
+    }
+  });
+  $("fmtCancel").onclick = () => closeModal("fmtModal");
+  $("fmtOk").onclick = () => {
+    closeModal("fmtModal");
+    if (fmtBlockTarget) {
+      fmtBlockTarget.template_ = $("fmtTextarea").value || "";
+      fmtBlockTarget.updateShape_();
+    }
+    markDirty();
+  };
+  $("fmtModal").addEventListener("click", (e) => {
+    if (e.target === $("fmtModal")) closeModal("fmtModal");
+  });
+}
+
 function markDirty() {
   if (!loading) dirty = true;
 }
@@ -1423,6 +1756,8 @@ function bindEvents() {
   bindImportModal();
   bindModelModal();
   bindTestModal();
+  bindBlockModelModal();
+  bindFmtModal();
 }
 
 /* ---------- 启动 ---------- */

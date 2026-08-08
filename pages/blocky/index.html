@@ -204,6 +204,50 @@
     </div>
   </div>
 
+  <!-- AI 块「指定模型」弹窗 -->
+  <div class="modal-overlay hidden" id="blockModelModal">
+    <div class="modal model-wide" role="dialog" aria-modal="true">
+      <div class="modal-title">AI 回答 · 指定模型（按顺序优先）</div>
+      <div class="modal-message">添加多个 provider:model；失败的模型会自动切换为下一个。留空表示不限制。</div>
+      <div class="model-pick-row">
+        <input class="input model-input" id="blockModelInput" list="modelList"
+          placeholder="输入或选择 provider:model，回车添加" />
+        <button class="btn btn-sm" id="blockModelAdd">添加</button>
+        <button class="btn btn-sm btn-ghost" id="blockModelLoad">加载可用模型</button>
+      </div>
+      <div class="model-edit-list" id="blockModelEditList"></div>
+      <div class="modal-actions">
+        <button class="btn" id="blockModelCancel">取消</button>
+        <button class="btn btn-primary" id="blockModelOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 格式化文本创建弹窗 -->
+  <div class="modal-overlay hidden" id="fmtModal">
+    <div class="modal fmt-wide" role="dialog" aria-modal="true">
+      <div class="modal-title">格式化文本创建</div>
+      <div class="fmt-wrap">
+        <div class="fmt-left">
+          <label class="form-row-label" for="fmtTextarea">模板文本（可多行；点击右侧标签在光标处插入 {标签}）</label>
+          <textarea class="input fmt-textarea" id="fmtTextarea" rows="10" spellcheck="false"></textarea>
+        </div>
+        <div class="fmt-right">
+          <div class="form-row-label">标签</div>
+          <div class="fmt-tag-add">
+            <input class="input" id="fmtTagInput" placeholder="新标签名" />
+            <button class="btn btn-sm" id="fmtTagAdd">创建标签</button>
+          </div>
+          <div class="fmt-tag-list" id="fmtTagList"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="fmtCancel">取消</button>
+        <button class="btn btn-primary" id="fmtOk">确定</button>
+      </div>
+    </div>
+  </div>
+
   <xml id="toolbox" style="display: none">
     <category name="事件" colour="#5C81A6">
       <block type="blocky_event"></block>
@@ -279,6 +323,7 @@
       <block type="math_random_float"></block>
     </category>
     <category name="文本" colour="#A5745B">
+      <block type="blocky_format_text"></block>
       <block type="text"></block>
       <block type="text_join"></block>
       <block type="text_append"></block>
