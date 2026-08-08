@@ -5,9 +5,9 @@
 ## [v0.5.1] - 2026-08-08
 
 ### 修复
-- **收纳盒常驻开关互动紊乱**：修复点击 toggle 时事件冒泡到工具箱触发 `clearSelection` 导致状态错乱的问题。改用 `e.stopPropagation()` 阻止冒泡，`change` 事件监听取代 `requestAnimationFrame` 延迟回调，确保状态切换即时准确。
-- **状态切换检测逻辑错误**：`prev` 读取的 checkbox 状态已被浏览器先于 click 事件处理程序切换，导致 `prev === on` 恒成立，`selectFirstToolboxCategory` 从未执行。改为在更新 localStorage 之前读取 `trashcanVisible()` 获取旧值，正确识别 OFF→ON 切换。
-- **关闭常驻时工具箱弹出面板未关闭**：开启→关闭切换时立即调用 `clearSelection()` 清除分类选中并关闭 flyout，恢复默认行为。
+- **收纳盒常驻开关互动彻底修复**：Blockly 工具箱处理 `mousedown` 事件，此前 `stopPropagation` 绑在 `click` 上为时已晚，`mousedown` 早已冒泡到工具箱触发 `clearSelection`，导致常驻开启时 flyout 被关闭、关闭时 flyout 被打开。改为在 `mousedown` 上 `stopPropagation`，从源头阻断事件冒泡。
+- **分类选中/清除与鼠标事件时序冲突**：`selectFirstToolboxCategory` 和 `clearSelection` 立即执行会与工具箱仍在处理中的鼠标事件冲突。改为 `setTimeout(0)` 延迟到下一轮事件循环，确保工具箱状态已稳定后再操作。
+- **状态切换检测逻辑错误**：`prev` 读取的 checkbox 状态已被浏览器先于 click 事件处理程序切换，导致 `prev === on` 恒成立。改为在更新 localStorage 之前读取 `trashcanVisible()` 获取旧值，正确识别状态变化。
 
 ## [v0.5.0] - 2026-08-08
 

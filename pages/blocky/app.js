@@ -888,15 +888,18 @@ function setTrashcanVisible(on) {
     // 插件页运行在沙箱 iframe 中且无 allow-same-origin，localStorage 不可用，静默降级
   }
   patchSticky(on);
-  if (on && !wasOn) {
-    // 从关闭切换为开启：默认选中第一个分类（事件）并展开其 flyout
-    selectFirstToolboxCategory();
-  } else if (!on && wasOn) {
-    // 从开启切换为关闭：清除分类选中，关闭 flyout（恢复默认行为）
-    const tb = workspace && workspace.toolbox;
-    if (tb && typeof tb.clearSelection === "function") {
-      tb.clearSelection();
-    }
+  // 工具箱分类选中/清除操作延迟到下一轮事件循环，确保与鼠标事件处理时序不冲突
+  if (on !== wasOn) {
+    setTimeout(() => {
+      if (on) {
+        selectFirstToolboxCategory();
+      } else {
+        const tb = workspace && workspace.toolbox;
+        if (tb && typeof tb.clearSelection === "function") {
+          tb.clearSelection();
+        }
+      }
+    }, 0);
   }
   if (trashcanToggleCheck) {
     trashcanToggleCheck.checked = on;
@@ -913,8 +916,8 @@ function addTrashcanToggle() {
   const label = document.createElement("label");
   label.className = "blocky-trashcan-toggle";
   label.title = "常驻模式：开启后收纳盒与工具箱弹出面板不会因点击工作区而自动关闭";
-  label.addEventListener("click", (e) => {
-    // 阻止点击事件冒泡到工具箱触发 clearSelection，避免干扰状态切换
+  // 阻止 mousedown 冒泡到工具箱触发 clearSelection，避免干扰常驻状态切换
+  label.addEventListener("mousedown", (e) => {
     e.stopPropagation();
   });
   const labelSpan = document.createElement("span");
