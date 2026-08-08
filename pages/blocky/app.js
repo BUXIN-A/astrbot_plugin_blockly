@@ -506,7 +506,6 @@ function defineBlocks() {
           18,
           18,
           "配置指定模型",
-          false,
           () => this.openModels_()
         )
       );
@@ -548,7 +547,6 @@ function defineBlocks() {
           18,
           18,
           "编辑模板",
-          false,
           () => this.openEditor_()
         )
       );
@@ -567,9 +565,13 @@ function defineBlocks() {
       this.updateShape_();
     },
     updateShape_: function () {
-      // 保留按钮行（index 0），移除其余输入，再按模板中的标签重建输入端口。
-      while (this.inputList.length > 1) {
-        this.inputList.pop().dispose();
+      // 仅移除动态生成的 arg 输入端口（拖出/加载时会重建），
+      // 保留「格式化文本创建」标题行与齿轮按钮行等固定输入。
+      for (let i = this.inputList.length - 1; i >= 0; i--) {
+        const input = this.inputList[i];
+        if (typeof input.name === "string" && input.name.startsWith("arg")) {
+          this.removeInput(input.name, true);
+        }
       }
       extractTemplateTags(this.template_).forEach((tag, i) => {
         this.appendValueInput("arg" + i)
