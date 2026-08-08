@@ -533,13 +533,14 @@ body {
 }
 
 /* ---------- Blockly 积木面板 ---------- */
+/* 工具箱分类文字：新版 Blockly 用 HTML 渲染 label，需用 color 而非 fill */
 .blocklyTreeLabel {
-  fill: var(--text);
+  color: #000;
   font-weight: 600;
 }
 
 html[data-theme="dark"] .blocklyTreeLabel {
-  fill: #e8eaf0;
+  color: #e8eaf0;
 }
 
 /* ---------- 图标 ---------- */
