@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import logging
 import math
@@ -92,6 +93,52 @@ def _make_chain(text: str):
                 self.chain = [_Plain(t)]
 
         return _Chain(str(text))
+
+
+def _parse_allowlist(allowed: list[str]) -> list[tuple[str | None, str]]:
+    """解析「可用模型」白名单条目为 ``(provider_id, model)`` 列表。
+
+    条目格式为 ``provider_id:model``；旧格式（不含冒号）视为任意提供商的 model。
+    """
+    parsed: list[tuple[str | None, str]] = []
+    for entry in allowed or []:
+        entry = str(entry).strip()
+        if not entry:
+            continue
+        if ":" in entry:
+            provider, _, model = entry.rpartition(":")
+            parsed.append((provider or None, model))
+        else:
+            parsed.append((None, entry))
+    return parsed
+
+
+def _assert_safe_source(source: str) -> None:
+    """通过 AST 静态检查阻断常见的沙箱逃逸途径。
+
+    原生 ``exec`` 即使在受限命名空间内仍可通过 ``().__class__.__bases__[0].__subclasses__()``
+    等方式逃逸，因此额外禁止魔术属性/名称、import、global/nonlocal 与类定义。
+
+    Raises:
+        SyntaxError: 代码存在语法错误。
+        RuntimeError: 代码包含被禁止的构造。
+    """
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            if node.attr.startswith("__"):
+                raise RuntimeError(f"禁止访问以双下划线开头的属性：{node.attr!r}")
+        elif isinstance(node, ast.Name):
+            if node.id.startswith("__"):
+                raise RuntimeError(f"禁止使用以双下划线开头的名称：{node.id!r}")
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            raise RuntimeError("禁止使用 import 语句")  # noqa: TRY004 - 安全违规
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            raise RuntimeError(  # noqa: TRY004 - 安全违规
+                "禁止使用 global/nonlocal 语句"
+            )
+        elif isinstance(node, ast.ClassDef):
+            raise RuntimeError("禁止定义类")  # noqa: TRY004 - 安全违规
 
 
 async def _http_request(
@@ -188,22 +235,43 @@ class BlockyRuntime:
     async def chat(self, prompt: Any) -> str:
         """调用当前会话的 LLM，返回回答文本。
 
-        若程序配置了「可用模型」白名单（program.models 非空）：
-        - 当前会话模型在白名单内时直接使用；
-        - 否则改用白名单中的第一个模型。
+        若程序配置了「可用模型」白名单（program.models 非空），白名单条目格式为
+        ``provider_id:model``（旧格式仅为 model，匹配任意提供商）：
+        - 当前会话的 提供商+模型 已在白名单内时直接使用；
+        - 否则改用白名单中的第一个条目（可跨提供商切换）。
         """
         kwargs: dict[str, Any] = {}
+        provider_id = await self._get_current_provider_id()
         allowed = self._program.models or []
         if allowed:
-            current = await self._get_current_model()
-            if current not in allowed:
-                kwargs["model"] = allowed[0]
-        umo = self._event.unified_msg_origin
-        provider_id = await self._ctx.get_current_chat_provider_id(umo=umo)
+            current_model = await self._get_current_model()
+            entries = _parse_allowlist(allowed)
+            matched = any(
+                model == current_model and (prov is None or prov == provider_id)
+                for prov, model in entries
+            )
+            if not matched:
+                prov, model = entries[0] if entries else (None, None)
+                if model:
+                    kwargs["model"] = model
+                if prov and prov != provider_id:
+                    provider_id = prov
         resp = await self._ctx.llm_generate(
             chat_provider_id=provider_id, prompt=str(prompt), **kwargs
         )
         return resp.completion_text
+
+    async def _get_current_provider_id(self) -> str:
+        """获取当前会话使用的提供商 ID；无法获取时返回空字符串。"""
+        try:
+            return str(
+                await self._ctx.get_current_chat_provider_id(
+                    umo=self._event.unified_msg_origin
+                )
+                or ""
+            )
+        except Exception:  # noqa: BLE001 - 获取失败按空处理
+            return ""
 
     async def _get_current_model(self) -> str:
         """获取当前会话使用的模型名称；无法获取时返回空字符串。"""
@@ -212,15 +280,15 @@ class BlockyRuntime:
         if callable(getter):
             try:
                 return str(await getter() or "")
-            except Exception:  # noqa: BLE001 - 获取失败按无限制处理
+            except Exception:  # noqa: BLE001 - 获取失败按空处理
                 return ""
         try:
-            provider_id = await ctx.get_current_chat_provider_id(
-                umo=self._event.unified_msg_origin
-            )
+            provider_id = await self._get_current_provider_id()
+            if not provider_id:
+                return ""
             prov = await ctx.provider_manager.get_provider_by_id(provider_id)
             return str(getattr(prov, "get_model", lambda: "")() or "")
-        except Exception:  # noqa: BLE001 - 获取失败按无限制处理
+        except Exception:  # noqa: BLE001 - 获取失败按空处理
             return ""
 
     def log(self, text: Any) -> None:
@@ -303,10 +371,11 @@ async def run_program(
     source = wrap_code(code)
     ns = _build_namespace(context, event, program)
     try:
+        _assert_safe_source(source)
         compiled = compile(source, f"<blocky:{program.id}>", "exec")
     except SyntaxError as exc:
         raise RuntimeError(f"程序代码存在语法错误：{exc}") from exc
-    exec(compiled, ns)  # noqa: S102 - 受限命名空间内执行
+    exec(compiled, ns)  # noqa: S102 - 受限命名空间 + AST 检查后执行
     coro = ns["_blk_run"](event, context, ns["_blk"])
     await asyncio.wait_for(coro, timeout=timeout)
 
@@ -319,6 +388,7 @@ async def simulate_program(
     is_admin: bool = False,
     is_private: bool = False,
     current_model: str = "mock-model",
+    current_provider: str = "mock_provider",
 ) -> dict:
     """使用模拟事件运行程序（WebUI 测试运行）。
 
@@ -330,6 +400,7 @@ async def simulate_program(
         is_admin: 模拟事件中发送者是否为管理员。
         is_private: 模拟事件是否为私聊。
         current_model: 模拟会话当前使用的模型名称。
+        current_provider: 模拟会话当前使用的提供商 ID。
 
     Returns:
         包含 replies / sends / stopped / error / cost 的字典。
@@ -341,7 +412,10 @@ async def simulate_program(
         is_admin=is_admin,
         is_private=is_private,
     )
-    ctx = MockContext(current_model=current_model)
+    ctx = MockContext(
+        current_model=current_model,
+        current_provider=current_provider,
+    )
     if chat_responses:
         ctx.chat_responses.update(chat_responses)
 

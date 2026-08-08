@@ -21,7 +21,9 @@
         </div>
         <div class="sidebar-header-actions">
           <button class="icon-btn" id="collapseBtn" title="折叠/展开侧栏">
-            <img class="icon" src="img/minus.png" alt="折叠" />
+            <svg class="fold-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </button>
           <button class="btn btn-ghost" id="newBtn" title="新建程序">
             <img class="icon" src="img/add.png" alt="新建" />
@@ -46,8 +48,9 @@
           <span class="id-badge" id="idBadge" title="程序 ID"></span>
         </div>
         <div class="toolbar-right">
-          <label class="switch-wrap" title="启用该程序">
+          <label class="switch-wrap icon-toggle" title="启用该程序">
             <input type="checkbox" id="enabledCheck" />
+            <img class="toggle-check" src="img/check.png" alt="启用" />
             <span>启用</span>
           </label>
           <button class="btn" id="resetBtn" title="放弃未保存修改，重新加载当前程序">
@@ -88,11 +91,6 @@
           </div>
         </div>
         <input class="input desc-input" id="descriptionInput" placeholder="描述（可选）" />
-      </div>
-
-      <div class="tabs">
-        <button class="tab" data-mode="blockly" id="tabBlockly">积木模式</button>
-        <button class="tab" data-mode="python" id="tabPython">代码模式</button>
       </div>
 
       <div class="editor-area">

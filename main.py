@@ -305,13 +305,22 @@ class BlockyPlugin(Star):
         )
 
     async def api_list_programs(self) -> Any:
-        """返回全部程序（含运行统计），供前端列表渲染。"""
+        """返回全部程序（含运行统计，不含大字段），供前端列表渲染。"""
         return json_response(
             {
                 "ok": True,
-                "programs": [p.to_dict() for p in self.manager.list_programs()],
+                "programs": [
+                    self._program_summary(p) for p in self.manager.list_programs()
+                ],
             }
         )
+
+    def _program_summary(self, program: BlockyProgram) -> dict:
+        """轻量化的程序数据（列表用，剔除 workspace/code 大字段）。"""
+        data = program.to_dict()
+        data.pop("workspace", None)
+        data.pop("code", None)
+        return data
 
     async def api_create_program(self) -> Any:
         """新建程序（名称重复时后端自动追加序号）。"""
@@ -389,17 +398,31 @@ class BlockyPlugin(Star):
         return json_response({"ok": True, **result})
 
     async def api_list_models(self) -> Any:
-        """返回当前已配置的 AI 模型名称列表（供「可用模型」白名单选择）。"""
-        models: list[str] = []
-        seen: set[str] = set()
+        """返回当前已配置的 AI 模型列表（提供商 ID + 模型 ID），供「可用模型」白名单选择。
+
+        返回格式：[{"provider": 提供商ID, "model": 模型ID, "id": "provider:model"}]
+        """
+        models: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
         try:
             insts = getattr(self.context, "provider_manager", None)
-            for inst in (getattr(insts, "provider_insts", None) or [])[:20]:
-                name = getattr(inst, "get_model", None)
-                model = str(name()) if callable(name) else ""
-                if model and model not in seen:
-                    seen.add(model)
-                    models.append(model)
+            for inst in getattr(insts, "provider_insts", None) or []:
+                try:
+                    meta = inst.meta()
+                    provider = str(meta.id or "")
+                    model = str(meta.model or "")
+                except Exception:  # noqa: BLE001 - meta 不可用时回退
+                    provider = ""
+                    model = str(getattr(inst, "get_model", lambda: "")() or "")
+                if provider and model and (provider, model) not in seen:
+                    seen.add((provider, model))
+                    models.append(
+                        {
+                            "provider": provider,
+                            "model": model,
+                            "id": f"{provider}:{model}",
+                        }
+                    )
         except Exception:  # noqa: BLE001 - 模型列表不可用时返回空
             self.logger.warning("获取可用模型列表失败")
         return json_response({"ok": True, "models": models})

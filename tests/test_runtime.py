@@ -78,6 +78,42 @@ def test_chat_uses_authorized_model_when_current_not_allowed():
     assert "晴天" in result["replies"]
 
 
+def test_chat_allowlist_compound_provider_model():
+    """白名单条目为 提供商ID:模型ID，当前模型不在名单时改用白名单模型。"""
+    program = BlockyProgram(
+        models=["mock_provider:qwen-max"],
+        code="await _blk.reply(await _blk.chat('天气'))",
+    )
+    result = asyncio.run(
+        run_sim(
+            program,
+            message="hi",
+            chat_responses={"天气": "晴天"},
+            current_model="gpt-4o",
+            current_provider="mock_provider",
+        )
+    )
+    assert "晴天" in result["replies"]
+
+
+def test_chat_allowlist_current_provider_model_allowed():
+    """当前 提供商+模型 已在白名单中时不切换模型。"""
+    program = BlockyProgram(
+        models=["mock_provider:mock-model"],
+        code="await _blk.reply(await _blk.chat('天气'))",
+    )
+    result = asyncio.run(
+        run_sim(
+            program,
+            message="hi",
+            chat_responses={"天气": "晴天"},
+            current_model="mock-model",
+            current_provider="mock_provider",
+        )
+    )
+    assert "晴天" in result["replies"]
+
+
 def test_message_info_blocks():
     program = BlockyProgram(
         code="""
@@ -118,21 +154,6 @@ def test_syntax_error_reported():
     assert "语法错误" in result["error"]
 
 
-def test_safe_builtins_block_import():
-    program = BlockyProgram(
-        code="""
-try:
-    _ = __import__('os')
-    result = 'unsafe'
-except Exception:
-    result = 'blocked'
-await _blk.reply(result)
-""",
-    )
-    result = asyncio.run(run_sim(program, message="x"))
-    assert "blocked" in result["replies"]
-
-
 def test_safe_builtins_block_open():
     program = BlockyProgram(
         code="""
@@ -146,6 +167,27 @@ await _blk.reply(result)
     )
     result = asyncio.run(run_sim(program, message="x"))
     assert "blocked" in result["replies"]
+
+
+def test_magic_attribute_blocked():
+    """AST 静态检查阻断 ``().__class__`` 等沙箱逃逸。"""
+    program = BlockyProgram(code="await _blk.reply(str(().__class__))")
+    result = asyncio.run(run_sim(program, message="x"))
+    assert "禁止" in result["error"]
+
+
+def test_double_underscore_name_blocked():
+    """AST 静态检查阻断 ``__import__`` 等魔术名称。"""
+    program = BlockyProgram(code="await _blk.reply(str(__import__))")
+    result = asyncio.run(run_sim(program, message="x"))
+    assert "禁止" in result["error"]
+
+
+def test_import_blocked():
+    """AST 静态检查阻断 import 语句。"""
+    program = BlockyProgram(code="import os\nawait _blk.reply('x')")
+    result = asyncio.run(run_sim(program, message="x"))
+    assert "禁止" in result["error"]
 
 
 def test_math_and_random_available():

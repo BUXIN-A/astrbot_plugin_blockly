@@ -513,7 +513,7 @@ function renderSidebar() {
     const dupBtn = document.createElement("button");
     dupBtn.className = "icon-btn";
     dupBtn.title = "复制";
-    dupBtn.innerHTML = '<img class="icon" src="img/add.png" alt="复制" />';
+    dupBtn.innerHTML = '<img class="icon" src="img/copy.png" alt="复制" />';
     dupBtn.onclick = (e) => {
       e.stopPropagation();
       duplicateProgram(p.id);
@@ -529,15 +529,23 @@ function renderSidebar() {
     actions.appendChild(dupBtn);
     actions.appendChild(delBtn);
 
-    const toggle = document.createElement("input");
-    toggle.type = "checkbox";
-    toggle.className = "switch";
-    toggle.checked = !!p.enabled;
+    const toggle = document.createElement("label");
+    toggle.className = "icon-toggle";
     toggle.title = "启用/关闭";
-    toggle.onclick = (e) => {
+    toggle.onclick = (e) => e.stopPropagation();
+    const toggleInput = document.createElement("input");
+    toggleInput.type = "checkbox";
+    toggleInput.checked = !!p.enabled;
+    toggleInput.onclick = (e) => {
       e.stopPropagation();
-      toggleProgram(p.id, toggle.checked);
+      toggleProgram(p.id, toggleInput.checked);
     };
+    const toggleImg = document.createElement("img");
+    toggleImg.className = "toggle-check";
+    toggleImg.src = "img/check.png";
+    toggleImg.alt = "启用";
+    toggle.appendChild(toggleInput);
+    toggle.appendChild(toggleImg);
 
     item.appendChild(info);
     item.appendChild(actions);
@@ -566,10 +574,31 @@ async function selectProgram(id) {
   }
 }
 
+function enableEditor() {
+  [
+    "nameInput",
+    "descriptionInput",
+    "enabledCheck",
+    "priorityInput",
+    "timeoutInput",
+    "triggerType",
+    "triggerValue",
+    "modelInput",
+    "addModelBtn",
+    "loadModelsBtn",
+    "saveBtn",
+    "testBtn",
+    "resetBtn",
+  ].forEach((id) => {
+    $(id).disabled = false;
+  });
+}
+
 function loadProgram(p) {
   currentId = p.id;
   loading = true;
   dirty = false;
+  enableEditor();
 
   $("nameInput").value = p.name || "";
   $("descriptionInput").value = p.description || "";
@@ -577,12 +606,17 @@ function loadProgram(p) {
   $("enabledCheck").checked = !!p.enabled;
   $("priorityInput").value = p.priority || 0;
   $("timeoutInput").value = p.timeout || 30;
-  $("triggerType").value =
-    p.trigger && p.trigger.type ? p.trigger.type : "all";
-  $("triggerValue").value = (p.trigger && p.trigger.value) || "";
+  const trigType = p.trigger && p.trigger.type ? p.trigger.type : "all";
+  $("triggerType").value = trigType;
+  $("triggerValue").value =
+    (trigType === "contains" || trigType === "prefix" || trigType === "regex") &&
+    p.trigger
+      ? p.trigger.value || ""
+      : "";
   updateTriggerValueState();
   $("idBadge").textContent = p.id;
   $("testResult").textContent = "";
+  $("testResult").classList.remove("err");
   selectedModels = Array.isArray(p.models) ? p.models.slice() : [];
   renderModels();
 
@@ -595,59 +629,26 @@ function loadProgram(p) {
   }
 
   $("codeEditor").value = p.code || "";
-  if (p.content_type === "python") {
-    setEditorMode("python", true);
-  } else {
-    setEditorMode("blockly", true);
+  applyEditorMode(p.content_type === "python" ? "python" : "blockly");
+  renderSidebar();
+  loading = false;
+  window.dispatchEvent(new Event("resize"));
+}
+
+function applyEditorMode(mode) {
+  // 积木模式与代码模式相互隔离，程序一经创建便固定编辑方式，不可切换。
+  currentMode = mode === "python" ? "python" : "blockly";
+  $("blocklyDiv").classList.toggle("hidden", currentMode !== "blockly");
+  $("codeEditor").classList.toggle("hidden", currentMode !== "python");
+  $("ctypeBadge").textContent = currentMode === "python" ? "代码" : "积木";
+  if (currentMode === "blockly") {
     if (currentWorkspaceState) {
       Blockly.serialization.workspaces.load(currentWorkspaceState, workspace);
     } else {
       workspace.clear();
-    }
-  }
-  renderSidebar();
-  loading = false;
-}
-
-function setEditorMode(mode, silent) {
-  const target = mode === "python" ? "python" : "blockly";
-  if (!silent && target !== currentMode) {
-    // 代码模式与积木模式相互隔离：切换会覆盖另一侧内容
-    confirmDialog(
-      target === "python"
-        ? "切换到代码模式会把当前积木生成代码，并丢弃积木工作区，确定？"
-        : "切换到积木模式会丢弃当前代码，生成空积木工作区，确定？",
-      { title: "切换编辑方式", okText: "切换" },
-    ).then((ok) => {
-      if (!ok) return;
-      applyEditorMode(target, false);
-    });
-    return;
-  }
-  applyEditorMode(target, !!silent);
-}
-
-function applyEditorMode(mode, isLoad) {
-  const from = currentMode;
-  currentMode = mode;
-  $("tabBlockly").classList.toggle("active", mode === "blockly");
-  $("tabPython").classList.toggle("active", mode === "python");
-  $("blocklyDiv").classList.toggle("hidden", mode !== "blockly");
-  $("codeEditor").classList.toggle("hidden", mode !== "python");
-  $("ctypeBadge").textContent = mode === "python" ? "代码" : "积木";
-  if (!isLoad) {
-    if (mode === "python" && from === "blockly") {
-      // 积木 → 代码：生成代码，丢弃积木工作区
-      $("codeEditor").value = generateCode();
-      currentWorkspaceState = null;
-    } else if (mode === "blockly" && from === "python") {
-      // 代码 → 积木：清空工作区，保留代码作为参考
-      workspace.clear();
       Blockly.serialization.workspaces.load(defaultWorkspaceState(), workspace);
-      currentWorkspaceState = defaultWorkspaceState();
     }
   }
-  window.dispatchEvent(new Event("resize"));
 }
 
 function generateCode() {
@@ -720,17 +721,51 @@ async function newProgram() {
     programs.push(res.program);
     renderSidebar();
     await loadProgram(res.program);
-    loading = true;
-    if (res.program.content_type === "blockly") {
-      Blockly.serialization.workspaces.load(defaultWorkspaceState(), workspace);
-    }
-    loading = false;
     dirty = true;
     $("nameInput").focus();
     $("nameInput").select();
   } catch (err) {
     showToast(err.message || "新建失败", true);
   }
+}
+
+function clearEditor() {
+  currentId = null;
+  currentWorkspaceState = null;
+  currentMode = "blockly";
+  selectedModels = [];
+  renderModels();
+  workspace.clear();
+  $("codeEditor").value = "";
+  $("nameInput").value = "";
+  $("descriptionInput").value = "";
+  $("enabledCheck").checked = false;
+  $("priorityInput").value = 0;
+  $("timeoutInput").value = 30;
+  $("triggerType").value = "all";
+  $("triggerValue").value = "";
+  updateTriggerValueState();
+  $("idBadge").textContent = "";
+  $("ctypeBadge").textContent = "积木";
+  $("testResult").textContent = "";
+  $("testResult").classList.remove("err");
+  [
+    "nameInput",
+    "descriptionInput",
+    "enabledCheck",
+    "priorityInput",
+    "timeoutInput",
+    "triggerType",
+    "triggerValue",
+    "modelInput",
+    "addModelBtn",
+    "loadModelsBtn",
+    "saveBtn",
+    "testBtn",
+    "resetBtn",
+  ].forEach((id) => {
+    $(id).disabled = true;
+  });
 }
 
 async function deleteProgram(id) {
@@ -743,12 +778,7 @@ async function deleteProgram(id) {
   try {
     await apiPost("programs/" + id + "/delete", {});
     if (currentId === id) {
-      currentId = null;
-      currentWorkspaceState = null;
-      selectedModels = [];
-      renderModels();
-      workspace.clear();
-      $("codeEditor").value = "";
+      clearEditor();
     }
     await refreshPrograms();
     showToast("已删除");
@@ -823,9 +853,14 @@ async function runTest() {
     lines.push(`[耗时] ${res.cost}s`);
     if (!lines.length) lines.push("（程序无任何输出）");
     const el = $("testResult");
-    el.textContent = lines.join("\n");
-    if (res.error) el.classList.add("err");
-    else el.classList.remove("err");
+    el.innerHTML = "";
+    el.classList.toggle("err", !!res.error);
+    for (const line of lines) {
+      const row = document.createElement("div");
+      if (line.startsWith("[错误]")) row.className = "err-line";
+      row.textContent = line;
+      el.appendChild(row);
+    }
   } catch (err) {
     $("testResult").textContent = "运行出错：" + err.message;
     $("testResult").classList.add("err");
@@ -862,7 +897,15 @@ async function importFromFile(file) {
   }
 }
 
-/* ---------- 可用模型白名单 ---------- */
+/* ---------- 可用模型白名单（提供商 ID + 模型 ID） ---------- */
+
+function modelDisplay(id) {
+  const parts = String(id || "").split(":");
+  if (parts.length > 1) {
+    return `${parts[0]} / ${parts.slice(1).join(":")}`;
+  }
+  return id;
+}
 
 async function loadAvailableModels() {
   try {
@@ -872,10 +915,10 @@ async function loadAvailableModels() {
     list.innerHTML = "";
     for (const m of availableModels) {
       const opt = document.createElement("option");
-      opt.value = m;
+      opt.value = m.id;
+      opt.textContent = `${m.provider} · ${m.model}`;
       list.appendChild(opt);
     }
-    showToast(`已加载 ${availableModels.length} 个可用模型`);
   } catch (err) {
     showToast(err.message || "加载模型列表失败", true);
   }
@@ -895,7 +938,8 @@ function renderModels() {
     const chip = document.createElement("span");
     chip.className = "chip";
     const label = document.createElement("span");
-    label.textContent = m;
+    label.textContent = modelDisplay(m);
+    label.title = m;
     const rm = document.createElement("button");
     rm.type = "button";
     rm.className = "chip-remove";
@@ -915,7 +959,7 @@ function addModel(name) {
   name = (name || "").trim();
   if (!name) return;
   if (selectedModels.includes(name)) {
-    showToast(`模型 ${name} 已在列表中`);
+    showToast(`模型 ${modelDisplay(name)} 已在列表中`);
     return;
   }
   selectedModels.push(name);
@@ -957,8 +1001,6 @@ function bindEvents() {
     });
   };
   $("exportAllBtn").onclick = exportAll;
-  $("tabBlockly").onclick = () => setEditorMode("blockly");
-  $("tabPython").onclick = () => setEditorMode("python");
   $("collapseBtn").onclick = () => {
     $("sidebar").classList.toggle("collapsed");
   };

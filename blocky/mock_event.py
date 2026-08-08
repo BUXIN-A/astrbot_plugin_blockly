@@ -103,16 +103,21 @@ class MockEvent:
 class MockContext:
     """模拟的 Context，用于测试。"""
 
-    def __init__(self, current_model: str = "mock-model") -> None:
+    def __init__(
+        self,
+        current_model: str = "mock-model",
+        current_provider: str = "mock_provider",
+    ) -> None:
         self.sent: list[tuple[str, str]] = []
         self.chat_responses: dict[str, str] = {}
         self.current_model = current_model
+        self.current_provider = current_provider
 
     async def get_current_model(self) -> str:
         return self.current_model
 
     async def get_current_chat_provider_id(self, umo=None) -> str:
-        return "mock_provider"
+        return self.current_provider
 
     async def llm_generate(self, chat_provider_id=None, prompt="", **kwargs):
         class _Resp:
