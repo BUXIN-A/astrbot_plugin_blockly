@@ -16,7 +16,7 @@ import random
 import textwrap
 from typing import Any
 
-from .program import MODE_RETURN, BlockyProgram
+from .program import BlockyProgram
 
 logger = logging.getLogger("astrbot_plugin_blocky")
 
@@ -186,13 +186,42 @@ class BlockyRuntime:
         await self._ctx.send_message(str(umo), _make_chain(text))
 
     async def chat(self, prompt: Any) -> str:
-        """调用当前会话的 LLM，返回回答文本。"""
+        """调用当前会话的 LLM，返回回答文本。
+
+        若程序配置了「可用模型」白名单（program.models 非空）：
+        - 当前会话模型在白名单内时直接使用；
+        - 否则改用白名单中的第一个模型。
+        """
+        kwargs: dict[str, Any] = {}
+        allowed = self._program.models or []
+        if allowed:
+            current = await self._get_current_model()
+            if current not in allowed:
+                kwargs["model"] = allowed[0]
         umo = self._event.unified_msg_origin
         provider_id = await self._ctx.get_current_chat_provider_id(umo=umo)
         resp = await self._ctx.llm_generate(
-            chat_provider_id=provider_id, prompt=str(prompt)
+            chat_provider_id=provider_id, prompt=str(prompt), **kwargs
         )
         return resp.completion_text
+
+    async def _get_current_model(self) -> str:
+        """获取当前会话使用的模型名称；无法获取时返回空字符串。"""
+        ctx = self._ctx
+        getter = getattr(ctx, "get_current_model", None)
+        if callable(getter):
+            try:
+                return str(await getter() or "")
+            except Exception:  # noqa: BLE001 - 获取失败按无限制处理
+                return ""
+        try:
+            provider_id = await ctx.get_current_chat_provider_id(
+                umo=self._event.unified_msg_origin
+            )
+            prov = await ctx.provider_manager.get_provider_by_id(provider_id)
+            return str(getattr(prov, "get_model", lambda: "")() or "")
+        except Exception:  # noqa: BLE001 - 获取失败按无限制处理
+            return ""
 
     def log(self, text: Any) -> None:
         logger.info("[blocky:%s] %s", self._program.name, text)
@@ -280,9 +309,6 @@ async def run_program(
     exec(compiled, ns)  # noqa: S102 - 受限命名空间内执行
     coro = ns["_blk_run"](event, context, ns["_blk"])
     await asyncio.wait_for(coro, timeout=timeout)
-    # 模式默认行为
-    if program.mode == MODE_RETURN and not event.is_stopped():
-        event.stop_event()
 
 
 async def simulate_program(
@@ -292,6 +318,7 @@ async def simulate_program(
     chat_responses: dict | None = None,
     is_admin: bool = False,
     is_private: bool = False,
+    current_model: str = "mock-model",
 ) -> dict:
     """使用模拟事件运行程序（WebUI 测试运行）。
 
@@ -302,6 +329,7 @@ async def simulate_program(
         chat_responses: prompt 到回答的映射，用于模拟 AI 回答。
         is_admin: 模拟事件中发送者是否为管理员。
         is_private: 模拟事件是否为私聊。
+        current_model: 模拟会话当前使用的模型名称。
 
     Returns:
         包含 replies / sends / stopped / error / cost 的字典。
@@ -313,7 +341,7 @@ async def simulate_program(
         is_admin=is_admin,
         is_private=is_private,
     )
-    ctx = MockContext()
+    ctx = MockContext(current_model=current_model)
     if chat_responses:
         ctx.chat_responses.update(chat_responses)
 

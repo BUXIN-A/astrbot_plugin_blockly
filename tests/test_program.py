@@ -4,8 +4,6 @@ from blocky.mock_event import MockEvent
 from blocky.program import (
     CONTENT_BLOCKLY,
     CONTENT_PYTHON,
-    MODE_FORWARD,
-    MODE_RETURN,
     BlockyProgram,
 )
 
@@ -14,7 +12,7 @@ def test_from_dict_keeps_known_fields():
     data = {
         "id": "abc123",
         "name": "测试程序",
-        "mode": MODE_RETURN,
+        "models": ["gpt-4o", "qwen-max"],
         "priority": "5",
         "timeout": "10",
         "unknown": {"x": 1},
@@ -22,7 +20,7 @@ def test_from_dict_keeps_known_fields():
     p = BlockyProgram.from_dict(data)
     assert p.id == "abc123"
     assert p.name == "测试程序"
-    assert p.mode == MODE_RETURN
+    assert p.models == ["gpt-4o", "qwen-max"]
     assert p.priority == 5
     assert p.timeout == 10
 
@@ -35,13 +33,14 @@ def test_from_dict_normalizes_invalid_values():
             "trigger": {"type": "bad", "value": "x"},
             "priority": "not-a-number",
             "timeout": "not-a-number",
+            "models": "not-a-list",
         }
     )
-    assert p.mode == MODE_FORWARD
     assert p.content_type == CONTENT_BLOCKLY
     assert p.trigger["type"] == "all"
     assert p.priority == 0
     assert p.timeout == 30
+    assert p.models == []
 
 
 def test_from_dict_accepts_python_content_type():
@@ -104,7 +103,7 @@ def test_mark_run():
 def test_to_dict_roundtrip():
     p = BlockyProgram(
         name="往返",
-        mode=MODE_RETURN,
+        models=["qwen-max"],
         trigger={"type": "contains", "value": "你好"},
     )
     restored = BlockyProgram.from_dict(p.to_dict())

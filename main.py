@@ -26,8 +26,6 @@ try:  # AstrBot 以 data.plugins.<name>.main 的包形式加载插件
     from .blocky.manager import BlockyManager
     from .blocky.program import (
         CONTENT_BLOCKLY,
-        MODE_FORWARD,
-        MODE_RETURN,
         BlockyProgram,
     )
     from .blocky.runtime import run_program, simulate_program
@@ -35,8 +33,6 @@ except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
     from blocky.manager import BlockyManager
     from blocky.program import (
         CONTENT_BLOCKLY,
-        MODE_FORWARD,
-        MODE_RETURN,
         BlockyProgram,
     )
     from blocky.runtime import run_program, simulate_program
@@ -49,11 +45,11 @@ UPDATABLE_FIELDS = (
     "name",
     "description",
     "enabled",
-    "mode",
     "content_type",
     "workspace",
     "code",
     "trigger",
+    "models",
     "priority",
     "timeout",
 )
@@ -123,7 +119,7 @@ class BlockyPlugin(Star):
         event: AstrMessageEvent,
         programs: list[BlockyProgram],
     ) -> None:
-        """按优先级依次执行程序；返回模式或显式 stop 后停止执行后续程序。"""
+        """按优先级依次执行程序；事件被停止（返回消息/停止积木）后不再执行后续程序。"""
         for program in programs:
             timeout = program.timeout or self._default_timeout()
             try:
@@ -143,7 +139,7 @@ class BlockyPlugin(Star):
                 await self.manager.update(program)
             except Exception as exc:  # noqa: BLE001
                 self.logger.warning("保存程序运行状态失败：%s", exc)
-            if event.is_stopped() or program.mode == MODE_RETURN:
+            if event.is_stopped():
                 break
 
     # ---------- /blocky 聊天指令（仅管理员） ----------
@@ -204,9 +200,9 @@ class BlockyPlugin(Star):
         lines = ["Blocky 程序列表："]
         for program in programs:
             state = "开" if program.enabled else "关"
-            mode = "返回" if program.mode == MODE_RETURN else "传出"
+            ctype = "代码" if program.content_type == "python" else "积木"
             lines.append(
-                f"[{state}] {program.id} | {mode} | {program.name}"
+                f"[{state}] {program.id} | {ctype} | {program.name}"
                 + (f"（{program.last_error}）" if program.last_error else "")
             )
         return "\n".join(lines)
@@ -221,7 +217,7 @@ class BlockyPlugin(Star):
         return f"程序 {program.name} 已{'开启' if enabled else '关闭'}。"
 
     async def _command_new(self, name: str) -> str:
-        """新建一个传出消息模式的程序。"""
+        """新建一个积木模式的程序。"""
         name = (name or "").strip() or "未命名程序"
         program = await self.manager.create(name=name)
         return f"已创建程序：{program.name}（id: {program.id}）。请到 WebUI 编辑逻辑。"
@@ -284,6 +280,12 @@ class BlockyPlugin(Star):
             "测试运行 Blocky 程序",
         )
         ctx.register_web_api(
+            f"{prefix}/models",
+            self.api_list_models,
+            ["GET"],
+            "获取可用 AI 模型列表",
+        )
+        ctx.register_web_api(
             f"{prefix}/export", self.api_export, ["GET"], "导出全部 Blocky 程序"
         )
         ctx.register_web_api(
@@ -312,11 +314,10 @@ class BlockyPlugin(Star):
         )
 
     async def api_create_program(self) -> Any:
-        """新建程序。"""
+        """新建程序（名称重复时后端自动追加序号）。"""
         body = await request.json(default={})
         program = await self.manager.create(
             name=str(body.get("name") or "未命名程序"),
-            mode=str(body.get("mode") or MODE_FORWARD),
             content_type=str(body.get("content_type") or CONTENT_BLOCKLY),
             workspace=body.get("workspace") or "",
             code=body.get("code") or "",
@@ -386,6 +387,22 @@ class BlockyPlugin(Star):
             is_private=bool(body.get("is_private")),
         )
         return json_response({"ok": True, **result})
+
+    async def api_list_models(self) -> Any:
+        """返回当前已配置的 AI 模型名称列表（供「可用模型」白名单选择）。"""
+        models: list[str] = []
+        seen: set[str] = set()
+        try:
+            insts = getattr(self.context, "provider_manager", None)
+            for inst in (getattr(insts, "provider_insts", None) or [])[:20]:
+                name = getattr(inst, "get_model", None)
+                model = str(name()) if callable(name) else ""
+                if model and model not in seen:
+                    seen.add(model)
+                    models.append(model)
+        except Exception:  # noqa: BLE001 - 模型列表不可用时返回空
+            self.logger.warning("获取可用模型列表失败")
+        return json_response({"ok": True, "models": models})
 
     async def api_export(self) -> Any:
         """导出全部程序为 JSON 文件。"""

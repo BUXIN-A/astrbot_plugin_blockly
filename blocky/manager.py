@@ -62,18 +62,27 @@ class BlockyManager:
         return programs
 
     # ---------- 增删改 ----------
+    def _unique_name(self, name: str) -> str:
+        """若名称已存在，则追加序号（如「xx (2)」）以避免重名。"""
+        name = (name or "").strip() or "未命名程序"
+        used = {p.name for p in self._programs.values()}
+        if name not in used:
+            return name
+        i = 2
+        while f"{name} ({i})" in used:
+            i += 1
+        return f"{name} ({i})"
+
     async def create(
         self,
         name: str,
-        mode: str = "forward",
         content_type: str = "blockly",
         workspace: str = "",
         code: str = "",
     ) -> BlockyProgram:
         async with self._lock:
             program = BlockyProgram(
-                name=name or "未命名程序",
-                mode=mode,
+                name=self._unique_name(name),
                 content_type=content_type,
                 workspace=workspace,
                 code=code,

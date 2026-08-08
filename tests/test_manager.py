@@ -33,13 +33,23 @@ def test_delete(tmp_path):
 
 def test_duplicate(tmp_path):
     manager = BlockyManager(tmp_path)
-    program = asyncio.run(manager.create(name="原始", mode="return"))
+    program = asyncio.run(manager.create(name="原始", content_type="python"))
     clone = asyncio.run(manager.duplicate(program.id))
     assert clone is not None
     assert clone.id != program.id
     assert clone.name == "原始 (副本)"
     assert clone.enabled is False
-    assert clone.mode == "return"
+    assert clone.content_type == "python"
+
+
+def test_create_avoids_duplicate_names(tmp_path):
+    manager = BlockyManager(tmp_path)
+    first = asyncio.run(manager.create(name="同名"))
+    second = asyncio.run(manager.create(name="同名"))
+    third = asyncio.run(manager.create(name="同名"))
+    assert first.name == "同名"
+    assert second.name == "同名 (2)"
+    assert third.name == "同名 (3)"
 
 
 def test_duplicate_missing(tmp_path):

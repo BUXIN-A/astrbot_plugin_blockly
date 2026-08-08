@@ -3,16 +3,17 @@ display_name: Blocky 可视化编程
 short_desc: 使用 Blockly 积木在线编程，拦截/传递消息，操控 AstrBot。
 desc: |
   Blocky 可视化编程插件。使用 Blockly 积木（或直接编写 Python）创建"程序"，当机器人收到消息时执行，
-  可以劫持消息直接返回内容，也可以在处理完消息后将其正常传递给 AstrBot 继续处理。
+  通过积木决定是"返回消息"（劫持并直接回复）还是"传出消息"（放行交给 AstrBot 继续处理）。
 
   功能特性：
-  - 多程序（多文件）管理：新建、复制、删除、导入、导出、开启/关闭。
-  - 独立的 WebUI 编辑器（Blockly 积木模式 + Python 代码模式）。
+  - 多程序（多文件）管理：新建、复制、删除、导入、导出、开启/关闭；新建时可避免同名。
+  - 独立的 WebUI 编辑器（Blockly 积木模式 / Python 代码模式，两者相互隔离）。
   - 积木自动生成 Python 代码，后端在受限沙箱中执行。
-  - 内置 AstrBot 专属积木：回复/返回消息、传出消息、主动发送、调用 AI、HTTP 请求、日志、延时等。
+  - 内置 AstrBot 专属积木：返回消息 / 回复 / 传出消息 / 停止事件、主动发送、调用 AI、HTTP 请求、日志、延时等。
   - 每个程序可配置触发条件（全部消息 / 包含关键词 / 前缀 / 正则 / 仅管理员）。
+  - 可对「AI 回答」积木授权一个或多个可用模型。
   - 支持 WebUI 一键"测试运行"，无需真实消息即可验证。
-version: v0.1.0
+version: v0.2.0
 author: BUXIN-A
 repo: https://github.com/BUXIN-A/astrbot_plugin_blocky
 astrbot_version: ">=4.9.2"

@@ -13,10 +13,21 @@
 </head>
 <body>
   <div class="app">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <div class="brand">Blocky</div>
-        <button class="btn btn-ghost" id="newBtn" title="新建程序">+ 新建</button>
+        <div class="brand">
+          <img class="brand-logo" src="img/icon.png" alt="Blocky" />
+          <span>Blocky</span>
+        </div>
+        <div class="sidebar-header-actions">
+          <button class="icon-btn" id="collapseBtn" title="折叠/展开侧栏">
+            <img class="icon" src="img/minus.png" alt="折叠" />
+          </button>
+          <button class="btn btn-ghost" id="newBtn" title="新建程序">
+            <img class="icon" src="img/add.png" alt="新建" />
+            <span>新建</span>
+          </button>
+        </div>
       </div>
       <div class="sidebar-actions">
         <button class="btn btn-ghost btn-sm" id="exportAllBtn">导出全部</button>
@@ -31,10 +42,7 @@
       <header class="toolbar">
         <div class="toolbar-left">
           <input class="input name-input" id="nameInput" placeholder="程序名称" />
-          <select class="select" id="modeSelect" title="程序模式">
-            <option value="forward">传出消息（继续交给 AstrBot）</option>
-            <option value="return">返回消息（劫持并直接回复）</option>
-          </select>
+          <span class="ctype-badge" id="ctypeBadge" title="程序类型">积木</span>
           <span class="id-badge" id="idBadge" title="程序 ID"></span>
         </div>
         <div class="toolbar-right">
@@ -42,6 +50,10 @@
             <input type="checkbox" id="enabledCheck" />
             <span>启用</span>
           </label>
+          <button class="btn" id="resetBtn" title="放弃未保存修改，重新加载当前程序">
+            <img class="icon" src="img/reset.png" alt="重置" />
+            <span>重置</span>
+          </button>
           <button class="btn btn-primary" id="saveBtn">保存</button>
           <button class="btn" id="testBtn">测试运行</button>
         </div>
@@ -64,6 +76,17 @@
         <label>超时(秒)
           <input class="input number" type="number" id="timeoutInput" value="30" />
         </label>
+        <div class="models-field" title="「AI 回答」积木可用的模型白名单，留空表示不限制">
+          <label for="modelInput">可用模型</label>
+          <div class="chips" id="modelChips"></div>
+          <div class="model-add-row">
+            <input class="input model-input" id="modelInput" list="modelList"
+              placeholder="输入模型名后回车添加" />
+            <datalist id="modelList"></datalist>
+            <button class="btn btn-sm" id="addModelBtn" title="添加模型">+ 添加</button>
+            <button class="btn btn-sm" id="loadModelsBtn" title="加载当前可用模型">加载可用模型</button>
+          </div>
+        </div>
         <input class="input desc-input" id="descriptionInput" placeholder="描述（可选）" />
       </div>
 
@@ -92,6 +115,47 @@
     </main>
   </div>
 
+  <!-- 通用确认弹窗 -->
+  <div class="modal-overlay hidden" id="confirmModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-title" id="confirmTitle">提示</div>
+      <div class="modal-message" id="confirmMessage"></div>
+      <div class="modal-actions">
+        <button class="btn" id="confirmCancel">取消</button>
+        <button class="btn btn-primary" id="confirmOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新建程序弹窗 -->
+  <div class="modal-overlay hidden" id="createModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-title">新建程序</div>
+      <div class="form-row">
+        <label for="createName">程序名称</label>
+        <input class="input" id="createName" placeholder="输入程序名称" />
+        <div class="form-hint" id="createNameHint"></div>
+      </div>
+      <div class="form-row">
+        <label>编辑方式</label>
+        <div class="radio-row">
+          <label class="radio-label">
+            <input type="radio" name="createType" value="blockly" checked />
+            积木模式
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="createType" value="python" />
+            代码模式
+          </label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="createCancel">取消</button>
+        <button class="btn btn-primary" id="createOk">创建</button>
+      </div>
+    </div>
+  </div>
+
   <xml id="toolbox" style="display: none">
     <category name="事件" colour="#5C81A6">
       <block type="blocky_event"></block>
@@ -107,8 +171,8 @@
       <block type="blocky_is_private"></block>
     </category>
     <category name="回复与发送" colour="#5BA58C">
-      <block type="blocky_reply"></block>
       <block type="blocky_return_msg"></block>
+      <block type="blocky_reply"></block>
       <block type="blocky_forward"></block>
       <block type="blocky_stop"></block>
       <block type="blocky_send"></block>

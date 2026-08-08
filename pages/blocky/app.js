@@ -10,6 +10,8 @@ let currentId = null;
 let currentMode = "blockly"; // blockly | python
 let currentWorkspaceState = null; // 最近一次保存/加载的积木状态
 let programs = [];
+let selectedModels = []; // 当前表单中的「可用模型」白名单
+let availableModels = []; // 后端可用的模型列表
 let dirty = false;
 let loading = false;
 
@@ -36,8 +38,99 @@ function fmtTime(ts) {
   )}:${pad(d.getMinutes())}`;
 }
 
-function modeLabel(mode) {
-  return mode === "return" ? "返回" : "传出";
+function ctypeLabel(type) {
+  return type === "python" ? "代码" : "积木";
+}
+
+/* ---------- 弹窗（沙箱 iframe 内原生 confirm/alert 不可用，使用自定义弹窗） ---------- */
+
+function openModal(id) {
+  $(id).classList.remove("hidden");
+}
+
+function closeModal(id) {
+  $(id).classList.add("hidden");
+}
+
+let confirmResolve = null;
+
+function confirmDialog(message, options) {
+  const opts = options || {};
+  $("confirmTitle").textContent = opts.title || "提示";
+  $("confirmMessage").textContent = message;
+  $("confirmOk").textContent = opts.okText || "确定";
+  $("confirmOk").classList.toggle("btn-danger", !!opts.danger);
+  openModal("confirmModal");
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+  });
+}
+
+function bindConfirmModal() {
+  const close = (value) => {
+    closeModal("confirmModal");
+    if (confirmResolve) {
+      confirmResolve(value);
+      confirmResolve = null;
+    }
+  };
+  $("confirmOk").onclick = () => close(true);
+  $("confirmCancel").onclick = () => close(false);
+  $("confirmModal").addEventListener("click", (e) => {
+    if (e.target === $("confirmModal")) close(false);
+  });
+}
+
+function openCreateDialog() {
+  $("createName").value = "";
+  $("createNameHint").textContent = "";
+  document.querySelectorAll('input[name="createType"]')[0].checked = true;
+  openModal("createModal");
+  setTimeout(() => $("createName").focus(), 50);
+  return new Promise((resolve) => {
+    createResolve = resolve;
+  });
+}
+
+let createResolve = null;
+
+function bindCreateModal() {
+  const close = (value) => {
+    closeModal("createModal");
+    if (createResolve) {
+      createResolve(value);
+      createResolve = null;
+    }
+  };
+  const validate = () => {
+    const name = $("createName").value.trim();
+    const exists = programs.some(
+      (p) => p.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (!name) {
+      $("createNameHint").textContent = "请输入程序名称";
+      $("createOk").disabled = true;
+      return;
+    }
+    if (exists) {
+      $("createNameHint").textContent = "名称已存在，请更换名称";
+      $("createOk").disabled = true;
+      return;
+    }
+    $("createNameHint").textContent = "";
+    $("createOk").disabled = false;
+  };
+  $("createName").addEventListener("input", validate);
+  $("createOk").onclick = () => {
+    const name = $("createName").value.trim();
+    if (!name) return;
+    const typeEl = document.querySelector('input[name="createType"]:checked');
+    close({ name, content_type: typeEl ? typeEl.value : "blockly" });
+  };
+  $("createCancel").onclick = () => close(null);
+  $("createModal").addEventListener("click", (e) => {
+    if (e.target === $("createModal")) close(null);
+  });
 }
 
 /* ---------- 桥接 API ---------- */
@@ -56,7 +149,7 @@ function defineBlocks() {
   Blockly.common.defineBlocksWithJsonArray([
     {
       type: "blocky_event",
-      message0: "当接收到消息",
+      message0: "当接收到消息 %1",
       args0: [{ type: "input_statement", name: "DO" }],
       colour: 210,
       nextStatement: null,
@@ -81,36 +174,42 @@ function defineBlocks() {
       message0: "发送者ID",
       output: "String",
       colour: 160,
+      tooltip: "发送者的唯一 ID。",
     },
     {
       type: "blocky_get_group_id",
       message0: "群号",
       output: "String",
       colour: 160,
+      tooltip: "消息所在群聊的 ID（私聊为空）。",
     },
     {
       type: "blocky_get_session",
       message0: "会话标识",
       output: "String",
       colour: 160,
+      tooltip: "当前会话的 unified_msg_origin 标识。",
     },
     {
       type: "blocky_get_platform",
       message0: "平台名称",
       output: "String",
       colour: 160,
+      tooltip: "消息来源平台（如 aiocqhttp / telegram）。",
     },
     {
       type: "blocky_is_admin",
       message0: "发送者是否为管理员",
       output: "Boolean",
       colour: 160,
+      tooltip: "发送者是否是机器人管理员。",
     },
     {
       type: "blocky_is_private",
       message0: "是否为私聊",
       output: "Boolean",
       colour: 160,
+      tooltip: "消息是否来自私聊。",
     },
     {
       type: "blocky_reply",
@@ -119,7 +218,8 @@ function defineBlocks() {
       previousStatement: null,
       nextStatement: null,
       colour: 210,
-      tooltip: "回复一条消息，并继续让 AstrBot 处理。",
+      tooltip:
+        "回复一条消息但不劫持事件（其他匹配程序仍会执行；AstrBot 将不再回复）。",
     },
     {
       type: "blocky_return_msg",
@@ -128,7 +228,8 @@ function defineBlocks() {
       previousStatement: null,
       nextStatement: null,
       colour: 210,
-      tooltip: "回复消息并劫持事件，阻止 AstrBot 继续处理。",
+      tooltip:
+        "回复消息并劫持事件（返回消息模式）：阻止 AstrBot 继续处理本次消息。",
     },
     {
       type: "blocky_forward",
@@ -136,6 +237,7 @@ function defineBlocks() {
       previousStatement: null,
       nextStatement: null,
       colour: 210,
+      tooltip: "放行消息（传出消息模式），交给 AstrBot 继续处理并回复。",
     },
     {
       type: "blocky_stop",
@@ -143,6 +245,7 @@ function defineBlocks() {
       previousStatement: null,
       nextStatement: null,
       colour: 210,
+      tooltip: "立即停止事件传播，AstrBot 不再处理。",
     },
     {
       type: "blocky_send",
@@ -178,7 +281,8 @@ function defineBlocks() {
       args0: [{ type: "input_value", name: "PROMPT", check: "String" }],
       output: "String",
       colour: 90,
-      tooltip: "调用当前会话的 AI 模型，返回回答文本。",
+      tooltip:
+        "调用当前会话的 AI 模型，返回回答文本；受程序「可用模型」白名单约束。",
     },
     {
       type: "blocky_http_get",
@@ -382,7 +486,7 @@ function renderSidebar() {
   list.innerHTML = "";
   if (!programs.length) {
     list.innerHTML =
-      '<div class="empty-state">暂无程序<br/>点击「+ 新建」创建第一个程序</div>';
+      '<div class="empty-state">暂无程序<br/>点击「新建」创建第一个程序</div>';
     return;
   }
   for (const p of programs) {
@@ -396,9 +500,11 @@ function renderSidebar() {
     name.textContent = p.name || "未命名程序";
     const meta = document.createElement("div");
     meta.className = "p-meta" + (p.last_error ? " p-error" : "");
-    meta.textContent = `${modeLabel(p.mode)} · 优先级 ${p.priority} · ${fmtTime(
-      p.last_run_at,
-    )}${p.last_error ? " · " + p.last_error : ""}`;
+    meta.textContent = `${ctypeLabel(p.content_type)} · 优先级 ${
+      p.priority
+    } · ${fmtTime(p.last_run_at)}${
+      p.last_error ? " · " + p.last_error : ""
+    }`;
     info.appendChild(name);
     info.appendChild(meta);
 
@@ -406,16 +512,16 @@ function renderSidebar() {
     actions.className = "p-actions";
     const dupBtn = document.createElement("button");
     dupBtn.className = "icon-btn";
-    dupBtn.textContent = "⧉";
     dupBtn.title = "复制";
+    dupBtn.innerHTML = '<img class="icon" src="img/add.png" alt="复制" />';
     dupBtn.onclick = (e) => {
       e.stopPropagation();
       duplicateProgram(p.id);
     };
     const delBtn = document.createElement("button");
     delBtn.className = "icon-btn danger";
-    delBtn.textContent = "✕";
     delBtn.title = "删除";
+    delBtn.innerHTML = '<img class="icon" src="img/delete.png" alt="删除" />';
     delBtn.onclick = (e) => {
       e.stopPropagation();
       deleteProgram(p.id);
@@ -445,7 +551,13 @@ function renderSidebar() {
 
 async function selectProgram(id) {
   if (id === currentId) return;
-  if (dirty && !confirm("当前程序有未保存的修改，是否放弃？")) return;
+  if (dirty) {
+    const ok = await confirmDialog(
+      "当前程序有未保存的修改，是否放弃？",
+      { title: "切换程序", okText: "放弃修改" },
+    );
+    if (!ok) return;
+  }
   try {
     const res = await apiGet("programs/" + id);
     loadProgram(res.program);
@@ -461,7 +573,7 @@ function loadProgram(p) {
 
   $("nameInput").value = p.name || "";
   $("descriptionInput").value = p.description || "";
-  $("modeSelect").value = p.mode === "return" ? "return" : "forward";
+  $("ctypeBadge").textContent = ctypeLabel(p.content_type);
   $("enabledCheck").checked = !!p.enabled;
   $("priorityInput").value = p.priority || 0;
   $("timeoutInput").value = p.timeout || 30;
@@ -471,6 +583,8 @@ function loadProgram(p) {
   updateTriggerValueState();
   $("idBadge").textContent = p.id;
   $("testResult").textContent = "";
+  selectedModels = Array.isArray(p.models) ? p.models.slice() : [];
+  renderModels();
 
   currentWorkspaceState = null;
   try {
@@ -480,12 +594,11 @@ function loadProgram(p) {
     currentWorkspaceState = null;
   }
 
+  $("codeEditor").value = p.code || "";
   if (p.content_type === "python") {
-    setEditorMode("python");
-    $("codeEditor").value = p.code || "";
+    setEditorMode("python", true);
   } else {
-    $("codeEditor").value = p.code || "";
-    setEditorMode("blockly");
+    setEditorMode("blockly", true);
     if (currentWorkspaceState) {
       Blockly.serialization.workspaces.load(currentWorkspaceState, workspace);
     } else {
@@ -496,14 +609,43 @@ function loadProgram(p) {
   loading = false;
 }
 
-function setEditorMode(mode) {
+function setEditorMode(mode, silent) {
+  const target = mode === "python" ? "python" : "blockly";
+  if (!silent && target !== currentMode) {
+    // 代码模式与积木模式相互隔离：切换会覆盖另一侧内容
+    confirmDialog(
+      target === "python"
+        ? "切换到代码模式会把当前积木生成代码，并丢弃积木工作区，确定？"
+        : "切换到积木模式会丢弃当前代码，生成空积木工作区，确定？",
+      { title: "切换编辑方式", okText: "切换" },
+    ).then((ok) => {
+      if (!ok) return;
+      applyEditorMode(target, false);
+    });
+    return;
+  }
+  applyEditorMode(target, !!silent);
+}
+
+function applyEditorMode(mode, isLoad) {
+  const from = currentMode;
   currentMode = mode;
   $("tabBlockly").classList.toggle("active", mode === "blockly");
   $("tabPython").classList.toggle("active", mode === "python");
   $("blocklyDiv").classList.toggle("hidden", mode !== "blockly");
   $("codeEditor").classList.toggle("hidden", mode !== "python");
-  if (mode === "python") {
-    $("codeEditor").value = generateCode();
+  $("ctypeBadge").textContent = mode === "python" ? "代码" : "积木";
+  if (!isLoad) {
+    if (mode === "python" && from === "blockly") {
+      // 积木 → 代码：生成代码，丢弃积木工作区
+      $("codeEditor").value = generateCode();
+      currentWorkspaceState = null;
+    } else if (mode === "blockly" && from === "python") {
+      // 代码 → 积木：清空工作区，保留代码作为参考
+      workspace.clear();
+      Blockly.serialization.workspaces.load(defaultWorkspaceState(), workspace);
+      currentWorkspaceState = defaultWorkspaceState();
+    }
   }
   window.dispatchEvent(new Event("resize"));
 }
@@ -536,11 +678,11 @@ function collectForm() {
   return {
     name: $("nameInput").value.trim() || "未命名程序",
     description: $("descriptionInput").value.trim(),
-    mode: $("modeSelect").value,
     content_type: currentMode === "blockly" ? "blockly" : "python",
     workspace: workspaceState ? JSON.stringify(workspaceState) : "",
     code: code,
     trigger: { type: triggerType, value: triggerValue },
+    models: selectedModels.slice(),
     priority: Number($("priorityInput").value) || 0,
     timeout: Math.max(1, Number($("timeoutInput").value) || 30),
     enabled: $("enabledCheck").checked,
@@ -568,17 +710,20 @@ async function saveProgram(silent = false) {
 /* ---------- 增删改查操作 ---------- */
 
 async function newProgram() {
+  const choice = await openCreateDialog();
+  if (!choice) return;
   try {
     const res = await apiPost("programs", {
-      name: "未命名程序",
-      mode: "forward",
-      content_type: "blockly",
+      name: choice.name,
+      content_type: choice.content_type,
     });
     programs.push(res.program);
     renderSidebar();
     await loadProgram(res.program);
     loading = true;
-    Blockly.serialization.workspaces.load(defaultWorkspaceState(), workspace);
+    if (res.program.content_type === "blockly") {
+      Blockly.serialization.workspaces.load(defaultWorkspaceState(), workspace);
+    }
     loading = false;
     dirty = true;
     $("nameInput").focus();
@@ -589,12 +734,19 @@ async function newProgram() {
 }
 
 async function deleteProgram(id) {
-  if (!confirm("确定删除该程序？此操作不可恢复。")) return;
+  const ok = await confirmDialog("确定删除该程序？此操作不可恢复。", {
+    title: "删除程序",
+    okText: "删除",
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await apiPost("programs/" + id + "/delete", {});
     if (currentId === id) {
       currentId = null;
       currentWorkspaceState = null;
+      selectedModels = [];
+      renderModels();
       workspace.clear();
       $("codeEditor").value = "";
     }
@@ -663,8 +815,11 @@ async function runTest() {
         lines.push(`[主动发送] ${s[1] || ""}`);
       }
     }
-    if (res.stopped) lines.push("[事件] 已停止传播（AstrBot 将不再处理）");
-    else lines.push("[事件] 未停止（将继续交给 AstrBot 处理）");
+    if (res.stopped) {
+      lines.push("[事件] 已停止（返回消息：AstrBot 将不再处理）");
+    } else {
+      lines.push("[事件] 未停止（传出消息：将继续交给 AstrBot 处理）");
+    }
     lines.push(`[耗时] ${res.cost}s`);
     if (!lines.length) lines.push("（程序无任何输出）");
     const el = $("testResult");
@@ -707,6 +862,71 @@ async function importFromFile(file) {
   }
 }
 
+/* ---------- 可用模型白名单 ---------- */
+
+async function loadAvailableModels() {
+  try {
+    const res = await apiGet("models");
+    availableModels = res.models || [];
+    const list = $("modelList");
+    list.innerHTML = "";
+    for (const m of availableModels) {
+      const opt = document.createElement("option");
+      opt.value = m;
+      list.appendChild(opt);
+    }
+    showToast(`已加载 ${availableModels.length} 个可用模型`);
+  } catch (err) {
+    showToast(err.message || "加载模型列表失败", true);
+  }
+}
+
+function renderModels() {
+  const chips = $("modelChips");
+  chips.innerHTML = "";
+  if (!selectedModels.length) {
+    const hint = document.createElement("span");
+    hint.className = "chips-empty";
+    hint.textContent = "不限制";
+    chips.appendChild(hint);
+    return;
+  }
+  for (const m of selectedModels) {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    const label = document.createElement("span");
+    label.textContent = m;
+    const rm = document.createElement("button");
+    rm.type = "button";
+    rm.className = "chip-remove";
+    rm.innerHTML = '<img class="icon icon-sm" src="img/delete.png" alt="移除" />';
+    rm.onclick = () => {
+      selectedModels = selectedModels.filter((x) => x !== m);
+      renderModels();
+      markDirty();
+    };
+    chip.appendChild(label);
+    chip.appendChild(rm);
+    chips.appendChild(chip);
+  }
+}
+
+function addModel(name) {
+  name = (name || "").trim();
+  if (!name) return;
+  if (selectedModels.includes(name)) {
+    showToast(`模型 ${name} 已在列表中`);
+    return;
+  }
+  selectedModels.push(name);
+  renderModels();
+  markDirty();
+}
+
+function markDirty() {
+  if (!loading) dirty = true;
+}
+
 /* ---------- 事件绑定 ---------- */
 
 function updateTriggerValueState() {
@@ -720,9 +940,28 @@ function bindEvents() {
   $("saveBtn").onclick = () => saveProgram(false);
   $("testBtn").onclick = runTest;
   $("refreshBtn").onclick = refreshPrograms;
+  $("resetBtn").onclick = () => {
+    if (!currentId) return;
+    confirmDialog(
+      "放弃未保存的修改，重新加载当前程序？",
+      { title: "重置", okText: "重置" },
+    ).then(async (ok) => {
+      if (!ok) return;
+      try {
+        const res = await apiGet("programs/" + currentId);
+        loadProgram(res.program);
+        showToast("已重置为上次保存的内容");
+      } catch (err) {
+        showToast(err.message || "重置失败", true);
+      }
+    });
+  };
   $("exportAllBtn").onclick = exportAll;
   $("tabBlockly").onclick = () => setEditorMode("blockly");
   $("tabPython").onclick = () => setEditorMode("python");
+  $("collapseBtn").onclick = () => {
+    $("sidebar").classList.toggle("collapsed");
+  };
 
   const importBtn = $("importBtn");
   const importFile = $("importFile");
@@ -734,25 +973,36 @@ function bindEvents() {
 
   $("triggerType").onchange = updateTriggerValueState;
 
-  const markDirty = () => {
-    if (!loading) dirty = true;
+  const bindDirty = (id) => {
+    const el = $(id);
+    el.addEventListener("input", markDirty);
+    el.addEventListener("change", markDirty);
   };
   [
     "nameInput",
     "descriptionInput",
-    "modeSelect",
     "enabledCheck",
     "priorityInput",
     "timeoutInput",
     "triggerType",
     "triggerValue",
     "codeEditor",
-  ].forEach((id) => {
-    $(id).addEventListener("input", markDirty);
-    $(id).addEventListener("change", markDirty);
-  });
+  ].forEach(bindDirty);
 
   $("testChat").addEventListener("input", markDirty);
+
+  $("addModelBtn").onclick = () => {
+    addModel($("modelInput").value);
+    $("modelInput").value = "";
+  };
+  $("modelInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addModel($("modelInput").value);
+      $("modelInput").value = "";
+    }
+  });
+  $("loadModelsBtn").onclick = loadAvailableModels;
 
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {
@@ -760,6 +1010,9 @@ function bindEvents() {
       e.returnValue = "";
     }
   });
+
+  bindConfirmModal();
+  bindCreateModal();
 }
 
 /* ---------- 启动 ---------- */
@@ -779,6 +1032,7 @@ function bindEvents() {
       }
     });
     bindEvents();
+    loadAvailableModels();
     await refreshPrograms();
     if (programs.length) {
       await selectProgram(programs[0].id);

@@ -10,10 +10,6 @@ from dataclasses import asdict, dataclass, field
 # 触发条件类型
 TRIGGER_TYPES = ("all", "contains", "prefix", "regex", "admin_only")
 
-# 程序模式
-MODE_FORWARD = "forward"  # 传出消息：处理完继续交给 AstrBot
-MODE_RETURN = "return"  # 返回消息：劫持消息，直接返回
-
 # 内容类型
 CONTENT_BLOCKLY = "blockly"
 CONTENT_PYTHON = "python"
@@ -35,11 +31,13 @@ class BlockyProgram:
     name: str = "未命名程序"
     description: str = ""
     enabled: bool = False
-    mode: str = MODE_FORWARD
     content_type: str = CONTENT_BLOCKLY
     workspace: str = ""  # Blockly 序列化 JSON（content_type 为 blockly 时使用）
     code: str = ""  # 生成的或手写的 Python 代码
     trigger: dict = field(default_factory=lambda: {"type": "all", "value": ""})
+    models: list[str] = field(
+        default_factory=list
+    )  # AI 积木可用模型白名单，空表示不限制
     priority: int = 0
     timeout: int = 30
     last_error: str = ""
@@ -56,13 +54,15 @@ class BlockyProgram:
     def from_dict(cls, data: dict) -> BlockyProgram:
         known = {f for f in cls.__dataclass_fields__}
         data = {k: v for k, v in (data or {}).items() if k in known}
-        if "mode" in data and data["mode"] not in (MODE_FORWARD, MODE_RETURN):
-            data["mode"] = MODE_FORWARD
         if "content_type" in data and data["content_type"] not in (
             CONTENT_BLOCKLY,
             CONTENT_PYTHON,
         ):
             data["content_type"] = CONTENT_BLOCKLY
+        models = data.get("models")
+        if not isinstance(models, list):
+            models = []
+        data["models"] = [str(m) for m in models if str(m).strip()]
         trig = data.get("trigger")
         if not isinstance(trig, dict):
             trig = {"type": "all", "value": ""}

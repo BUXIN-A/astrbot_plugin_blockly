@@ -103,9 +103,13 @@ class MockEvent:
 class MockContext:
     """模拟的 Context，用于测试。"""
 
-    def __init__(self) -> None:
+    def __init__(self, current_model: str = "mock-model") -> None:
         self.sent: list[tuple[str, str]] = []
         self.chat_responses: dict[str, str] = {}
+        self.current_model = current_model
+
+    async def get_current_model(self) -> str:
+        return self.current_model
 
     async def get_current_chat_provider_id(self, umo=None) -> str:
         return "mock_provider"
