@@ -821,8 +821,9 @@ const TRASHCAN_KEY = "blocky_trashcan";
 let trashcanToggleBtn = null; // 工具箱底部追加的「收纳盒开关」label 容器
 let trashcanToggleCheck = null; // 内部的 checkbox
 let trashcanToggleImg = null; // 内部的勾选图标
-let _origCloseLid = null; // 保存原始 closeLid 方法
-let _origCloseFlyout = null; // 保存原始 closeFlyout 方法
+let _origCloseLid = null; // 保存原始 trashcan.closeLid
+let _origCloseFlyout = null; // 保存原始 trashcan.closeFlyout
+let _origToolboxFlyoutHide = null; // 保存原始 toolbox flyout.hide
 
 function trashcanVisible() {
   try {
@@ -832,18 +833,29 @@ function trashcanVisible() {
   }
 }
 
-function patchTrashcanSticky(on) {
-  // 当常驻开启时，阻止收纳盒因鼠标点击等互动自动关闭（lid 和 flyout）。
+function patchSticky(on) {
+  // 当常驻开启时，阻止收纳盒与工具箱 flyout 因鼠标点击等互动自动关闭。
   const tc = workspace && workspace.trashcan;
-  if (!tc) return;
-  if (on) {
-    if (!_origCloseLid) _origCloseLid = tc.closeLid.bind(tc);
-    if (!_origCloseFlyout) _origCloseFlyout = tc.closeFlyout.bind(tc);
-    tc.closeLid = () => {};
-    tc.closeFlyout = () => {};
-  } else {
-    if (_origCloseLid) { tc.closeLid = _origCloseLid; _origCloseLid = null; }
-    if (_origCloseFlyout) { tc.closeFlyout = _origCloseFlyout; _origCloseFlyout = null; }
+  if (tc) {
+    if (on) {
+      if (!_origCloseLid) _origCloseLid = tc.closeLid.bind(tc);
+      if (!_origCloseFlyout) _origCloseFlyout = tc.closeFlyout.bind(tc);
+      tc.closeLid = () => {};
+      tc.closeFlyout = () => {};
+    } else {
+      if (_origCloseLid) { tc.closeLid = _origCloseLid; _origCloseLid = null; }
+      if (_origCloseFlyout) { tc.closeFlyout = _origCloseFlyout; _origCloseFlyout = null; }
+    }
+  }
+  const tb = workspace && workspace.toolbox;
+  const flyout = tb && tb.getFlyout && tb.getFlyout();
+  if (flyout) {
+    if (on) {
+      if (!_origToolboxFlyoutHide) _origToolboxFlyoutHide = flyout.hide.bind(flyout);
+      flyout.hide = () => {};
+    } else {
+      if (_origToolboxFlyoutHide) { flyout.hide = _origToolboxFlyoutHide; _origToolboxFlyoutHide = null; }
+    }
   }
 }
 
@@ -853,10 +865,7 @@ function setTrashcanVisible(on) {
   } catch {
     // 插件页运行在沙箱 iframe 中且无 allow-same-origin，localStorage 不可用，静默降级
   }
-  if (workspace && workspace.trashcan && workspace.trashcan.svgGroup) {
-    workspace.trashcan.svgGroup.style.display = on ? "" : "none";
-  }
-  patchTrashcanSticky(on);
+  patchSticky(on);
   if (trashcanToggleCheck) {
     trashcanToggleCheck.checked = on;
   }
@@ -871,7 +880,7 @@ function addTrashcanToggle() {
   if (!container || container.querySelector(".blocky-trashcan-toggle")) return;
   const label = document.createElement("label");
   label.className = "blocky-trashcan-toggle";
-  label.title = "常驻收纳盒：开启后收纳盒始终可见，不会因鼠标点击而自动关闭";
+  label.title = "常驻模式：开启后收纳盒与工具箱弹出面板不会因点击工作区而自动关闭";
   const labelSpan = document.createElement("span");
   labelSpan.className = "trashcan-label";
   labelSpan.textContent = "收纳盒常驻";
@@ -890,7 +899,6 @@ function addTrashcanToggle() {
   label.appendChild(labelSpan);
   label.appendChild(toggle);
   label.addEventListener("click", (e) => {
-    // 点击 label 会切换 checkbox 状态，但我们需要同步更新 img 和 trashcan
     requestAnimationFrame(() => {
       setTrashcanVisible(input.checked);
     });
