@@ -27,6 +27,7 @@ try:  # AstrBot 以 data.plugins.<name>.main 的包形式加载插件
     from .blocky.program import (
         CONTENT_BLOCKLY,
         BlockyProgram,
+        new_id,
     )
     from .blocky.runtime import run_program, simulate_program
 except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
@@ -34,6 +35,7 @@ except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
     from blocky.program import (
         CONTENT_BLOCKLY,
         BlockyProgram,
+        new_id,
     )
     from blocky.runtime import run_program, simulate_program
 
@@ -445,7 +447,13 @@ class BlockyPlugin(Star):
         )
 
     async def api_import(self) -> Any:
-        """从 JSON 导入程序（body 为导出格式或程序对象列表）。"""
+        """从 JSON 导入程序（body 为导出格式或程序对象列表）。
+
+        ``body.on_conflict``（可选）为同名冲突处理策略映射：
+        ``{程序名(不区分大小写): "overwrite" | "rename"}``。
+        未提供该参数且检测到同名冲突时，返回 ``{"ok": false, "code":
+        "NAME_CONFLICT", "conflicts": [{"name", "id"}]}`` 供前端二次确认。
+        """
         body = await request.json(default={})
         return await self._import_data(body)
 
@@ -485,16 +493,68 @@ class BlockyPlugin(Star):
         )
 
     async def _import_data(self, body: Any) -> Any:
-        """解析并导入导出数据；同 id 程序将覆盖，否则新建。"""
+        """解析并导入导出数据。
+
+        名称相同但 id 不同的现有程序会被视为"同名冲突"：
+        - 未提供 ``on_conflict`` 策略时，返回冲突列表由前端二次确认；
+        - 提供策略 ``overwrite`` 时，用导入内容覆盖已有同名程序；
+        - 策略 ``rename`` 时，为导入条目追加序号命名并新建。
+        """
         programs_data = body.get("programs") if isinstance(body, dict) else body
         if not isinstance(programs_data, list) or not programs_data:
             return error_response("导入数据格式不正确", status_code=400)
+        on_conflict: dict[str, str] = {}
+        if isinstance(body, dict) and isinstance(body.get("on_conflict"), dict):
+            on_conflict = {
+                str(k).strip().lower(): str(v)
+                for k, v in body["on_conflict"].items()
+            }
+        items = [i for i in programs_data if isinstance(i, dict)]
+        if not items:
+            return error_response("导入数据格式不正确", status_code=400)
+
+        existing_by_name: dict[str, BlockyProgram] = {}
+        for p in self.manager.list_programs():
+            existing_by_name.setdefault(p.name.strip().lower(), p)
+
+        conflicts = [
+            {
+                "name": existing_by_name[str(item.get("name") or "").strip().lower()].name,
+                "id": str(item.get("id") or ""),
+            }
+            for item in items
+            if str(item.get("name") or "").strip().lower()
+            in existing_by_name
+            and existing_by_name[str(item.get("name") or "").strip().lower()].id
+            != str(item.get("id") or "")
+        ]
+        if conflicts and not on_conflict:
+            return json_response(
+                {
+                    "ok": False,
+                    "code": "NAME_CONFLICT",
+                    "conflicts": conflicts,
+                }
+            )
+
         count = 0
-        for item in programs_data:
-            if not isinstance(item, dict):
-                continue
+        name_map: dict[str, BlockyProgram] = dict(existing_by_name)
+        for item in items:
             program = BlockyProgram.from_dict(item)
+            if not str(program.name or "").strip():
+                program.name = "未命名程序"
+            name_key = program.name.strip().lower()
+            existing = name_map.get(name_key)
+            if existing is not None and existing.id != program.id:
+                strategy = on_conflict.get(name_key, "rename") or "rename"
+                if strategy == "overwrite":
+                    program.id = existing.id
+                    program.name = existing.name
+                else:
+                    program.id = new_id()
+                    program.name = self.manager.unique_name(program.name)
             program.updated_at = time.time()
+            name_map[program.name.strip().lower()] = program
             await self.manager.update(program)
             count += 1
         return json_response({"ok": True, "imported": count})

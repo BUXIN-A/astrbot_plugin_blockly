@@ -52,6 +52,15 @@ def test_create_avoids_duplicate_names(tmp_path):
     assert third.name == "同名 (3)"
 
 
+def test_unique_name_appends_suffix(tmp_path):
+    manager = BlockyManager(tmp_path)
+    asyncio.run(manager.create(name="去重"))
+    assert manager.unique_name("去重") == "去重 (2)"
+    assert manager.unique_name("去重") == "去重 (2)"
+    assert manager.unique_name("全新名称") == "全新名称"
+    assert manager.unique_name("  ") == "未命名程序"
+
+
 def test_duplicate_missing(tmp_path):
     manager = BlockyManager(tmp_path)
     assert asyncio.run(manager.duplicate("no-such-id")) is None

@@ -688,6 +688,44 @@ html[data-theme="dark"] .blocklyTreeLabel {
   color: var(--text);
 }
 
+.modal-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.import-wide {
+  width: 540px;
+  max-width: 92vw;
+}
+
+.import-conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.import-conflict-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.import-conflict-row .name {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .btn-danger {
   background: var(--danger);
   border-color: var(--danger);

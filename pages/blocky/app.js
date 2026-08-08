@@ -935,14 +935,102 @@ function exportCurrent() {
     .catch((err) => showToast(err.message || "导出失败", true));
 }
 
+let importResolve = null;
+
+function openImportConflictDialog(conflicts) {
+  const list = $("importConflicts");
+  list.innerHTML = "";
+  const result = {};
+  for (const c of conflicts) {
+    const row = document.createElement("div");
+    row.className = "import-conflict-row";
+    const span = document.createElement("span");
+    span.className = "name";
+    span.textContent = c.name || "未命名程序";
+    span.title = c.name || "";
+    const sel = document.createElement("select");
+    sel.className = "select";
+    const optOverwrite = document.createElement("option");
+    optOverwrite.value = "overwrite";
+    optOverwrite.textContent = "覆盖已有的同名程序";
+    const optRename = document.createElement("option");
+    optRename.value = "rename";
+    optRename.textContent = "使用新命名";
+    optRename.selected = true;
+    sel.append(optOverwrite, optRename);
+    result[c.name || "未命名程序"] = sel.value;
+    row.append(span, sel);
+    list.appendChild(row);
+  }
+  openModal("importModal");
+  return new Promise((resolve) => {
+    importResolve = resolve;
+  });
+}
+
+function bindImportModal() {
+  const close = (value) => {
+    closeModal("importModal");
+    if (importResolve) {
+      importResolve(value);
+      importResolve = null;
+    }
+  };
+  const collect = (forceRename) => {
+    const res = {};
+    document
+      .querySelectorAll("#importConflicts .import-conflict-row")
+      .forEach((row) => {
+        const name = row.querySelector(".name").textContent;
+        const select = row.querySelector("select");
+        if (forceRename) select.value = "rename";
+        res[name] = select.value;
+      });
+    close(res);
+  };
+  $("importConflictOk").onclick = () => collect(false);
+  $("importConflictCancel").onclick = () => close(null);
+  $("importConflictAllRename").onclick = () => collect(true);
+  $("importModal").addEventListener("click", (e) => {
+    if (e.target === $("importModal")) close(null);
+  });
+}
+
+async function importData(rawData, onConflict) {
+  let body;
+  if (Array.isArray(rawData)) {
+    body = { programs: rawData };
+  } else {
+    body = Object.assign({}, rawData);
+  }
+  if (onConflict) body.on_conflict = onConflict;
+  let res;
+  try {
+    res = await apiPost("import", body);
+  } catch (err) {
+    showToast(err.message || "导入失败", true);
+    return;
+  }
+  if (res && res.code === "NAME_CONFLICT") {
+    const strategy = await openImportConflictDialog(res.conflicts || []);
+    if (!strategy) return;
+    return importData(rawData, strategy);
+  }
+  showToast(`已导入 ${res.imported} 个程序`);
+  await refreshPrograms();
+}
+
 async function importFromFile(file) {
   if (!file) return;
   try {
-    const res = await bridge.upload("import/file", file);
-    showToast(`已导入 ${res.imported} 个程序`);
-    await refreshPrograms();
+    const text = await file.text();
+    const data = JSON.parse(text);
+    await importData(data);
   } catch (err) {
-    showToast(err.message || "导入失败", true);
+    showToast(
+      err.message || "导入失败，请确认文件为 Blocky 导出的 JSON",
+      true,
+    );
   }
 }
 
@@ -1107,6 +1195,7 @@ function bindEvents() {
 
   bindConfirmModal();
   bindCreateModal();
+  bindImportModal();
 }
 
 /* ---------- 启动 ---------- */

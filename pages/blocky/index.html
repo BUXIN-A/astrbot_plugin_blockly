@@ -125,6 +125,21 @@
     </div>
   </div>
 
+  <!-- 导入同名冲突确认弹窗 -->
+  <div class="modal-overlay hidden" id="importModal">
+    <div class="modal import-wide" role="dialog" aria-modal="true">
+      <div class="modal-title">导入同名确认</div>
+      <div class="modal-message">检测到以下程序名称已存在，请选择处理方式：</div>
+      <div class="import-conflicts" id="importConflicts"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="importConflictAllRename">全部使用新命名</button>
+        <span style="flex: 1"></span>
+        <button class="btn" id="importConflictCancel">取消导入</button>
+        <button class="btn btn-primary" id="importConflictOk">确定导入</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 新建程序弹窗 -->
   <div class="modal-overlay hidden" id="createModal">
     <div class="modal" role="dialog" aria-modal="true">
