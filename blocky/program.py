@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import time
 import uuid
@@ -17,8 +18,16 @@ CONTENT_PYTHON = "python"
 # 程序监听的事件类型
 EVENT_TYPES = ("message", "recall", "member_increase", "poke")
 
-# 消息事件的属性过滤（仅对 event_type=message 生效）
+# 消息事件的属性过滤（仅对 message 事件生效）
 EVENT_ATTRS = ("any", "text", "image", "face", "at", "voice", "reply")
+
+# Blockly 事件入口积木类型 -> 事件类型
+EVENT_BLOCK_TYPES = {
+    "blocky_event": "message",
+    "blocky_event_recall": "recall",
+    "blocky_event_member_increase": "member_increase",
+    "blocky_event_poke": "poke",
+}
 
 
 def new_id() -> str:
@@ -27,6 +36,53 @@ def new_id() -> str:
 
 def _now() -> float:
     return time.time()
+
+
+def normalize_event_types(value) -> list[str]:
+    """规范化事件类型为去重、有序、合法的列表。
+
+    支持字符串（逗号分隔，如 ``"message,recall"``）或列表；非法项被剔除，
+    结果为空时回退为 ``["message"]``。
+    """
+    if isinstance(value, (list, tuple, set)):
+        parts = [str(x).strip() for x in value]
+    else:
+        parts = [p.strip() for p in str(value or "").split(",")]
+    valid: list[str] = []
+    for part in parts:
+        if part in EVENT_TYPES and part not in valid:
+            valid.append(part)
+    return valid or ["message"]
+
+
+def workspace_event_types(workspace_json: str) -> list[str]:
+    """从积木工作区 JSON 中提取所有事件入口积木对应的事件类型。"""
+    if not workspace_json:
+        return []
+    try:
+        data = json.loads(workspace_json)
+    except (TypeError, ValueError):
+        return []
+    blocks = (data.get("blocks") or {}).get("blocks") or []
+    found: list[str] = []
+
+    def walk(block: dict) -> None:
+        if not isinstance(block, dict):
+            return
+        event_type = EVENT_BLOCK_TYPES.get(block.get("type"))
+        if event_type and event_type not in found:
+            found.append(event_type)
+        node = block.get("inputs") or {}
+        for sub in node.values():
+            if isinstance(sub, dict):
+                walk(sub.get("block"))
+        nxt = block.get("next")
+        if isinstance(nxt, dict):
+            walk(nxt.get("block"))
+
+    for block in blocks:
+        walk(block)
+    return found
 
 
 @dataclass
@@ -41,8 +97,8 @@ class BlockyProgram:
     workspace: str = ""  # Blockly 序列化 JSON（content_type 为 blockly 时使用）
     code: str = ""  # 生成的或手写的 Python 代码
     trigger: dict = field(default_factory=lambda: {"type": "all", "value": ""})
-    event_type: str = "message"  # 监听的 AstrBot 事件类型（消息/撤回/新成员/戳一戳）
-    event_attr: str = "any"  # 消息属性过滤：any/text/image/face/at/voice/reply
+    event_type: str = "message"  # 监听的事件类型；多个用逗号分隔（如 "message,recall"）
+    event_attr: str = "any"  # message 属性过滤：any/text/image/face/at/voice/reply
     models: list[str] = field(
         default_factory=list
     )  # AI 积木可用模型白名单，空表示不限制
@@ -53,6 +109,23 @@ class BlockyProgram:
     run_count: int = 0
     created_at: float = field(default_factory=_now)
     updated_at: float = field(default_factory=_now)
+
+    @property
+    def event_types(self) -> list[str]:
+        """按事件块顺序返回监听的事件类型列表（逗号分隔的 ``event_type`` 解析结果）。"""
+        return normalize_event_types(self.event_type)
+
+    def sync_event_type_from_workspace(self) -> None:
+        """以积木工作区中的事件入口块为权威，回填 ``event_type``。
+
+        向后兼容：旧版本仅保存画布上第一个事件块、且更换事件类型后通知类事件
+        无法触发，这里保证加载/导入后多个事件块都能被正确识别。
+        """
+        if self.content_type != CONTENT_BLOCKLY:
+            return
+        ws_types = workspace_event_types(self.workspace)
+        if ws_types:
+            self.event_type = ",".join(ws_types)
 
     def to_dict(self) -> dict:
         data = asdict(self)
@@ -77,8 +150,7 @@ class BlockyProgram:
         if trig.get("type") not in TRIGGER_TYPES:
             trig["type"] = "all"
         data["trigger"] = trig
-        if data.get("event_type") not in EVENT_TYPES:
-            data["event_type"] = "message"
+        data["event_type"] = ",".join(normalize_event_types(data.get("event_type")))
         if data.get("event_attr") not in EVENT_ATTRS:
             data["event_attr"] = "any"
         try:
@@ -89,7 +161,9 @@ class BlockyProgram:
             data["timeout"] = max(1, int(data.get("timeout") or 30))
         except (TypeError, ValueError):
             data["timeout"] = 30
-        return cls(**data)
+        program = cls(**data)
+        program.sync_event_type_from_workspace()
+        return program
 
     def matches(self, event) -> bool:
         """根据触发条件判断该程序是否应处理当前消息事件。"""

@@ -24,6 +24,31 @@ from .program import CONTENT_BLOCKLY, BlockyProgram
 
 logger = logging.getLogger("astrbot_plugin_blocky")
 
+# OneBot notice 事件类型映射到本插件的事件类型
+NOTICE_KINDS = {
+    "group_recall": "recall",
+    "group_increase": "member_increase",
+}
+
+
+def resolve_event_kind(event) -> str:
+    """返回事件的真实类型（message / recall / member_increase / poke / other_notice）。
+
+    AstrBot 把 OneBot 的通知（撤回/成员加入/戳一戳等）统一包装为消息事件，
+    原始事件保存在 ``message_obj.raw_message`` 中，据此区分。
+    """
+    raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
+    if isinstance(raw, dict) and raw.get("post_type") == "notice":
+        notice_type = raw.get("notice_type")
+        if notice_type in NOTICE_KINDS:
+            return NOTICE_KINDS[notice_type]
+        if notice_type == "friend_poke" or (
+            notice_type == "notify" and raw.get("sub_type") == "poke"
+        ):
+            return "poke"
+        return "other_notice"
+    return "message"
+
 
 def _safe_print(*args, **kwargs):
     try:
@@ -193,6 +218,7 @@ class BlockyRuntime:
         self._ctx = context
         self._event = event
         self._program = program
+        self.event_type = resolve_event_kind(event)
 
     # ---------- 事件读取 ----------
     def _messages(self) -> list:
@@ -225,8 +251,8 @@ class BlockyRuntime:
         return str(name or seg_type or "").lower()
 
     def get_event_type(self) -> str:
-        """当前程序监听的事件类型（message/recall/member_increase/poke）。"""
-        return str(self._program.event_type or "message")
+        """本次执行对应的事件类型（message/recall/member_increase/poke）。"""
+        return str(self.event_type or "message")
 
     def get_message(self) -> str:
         return self._event.message_str

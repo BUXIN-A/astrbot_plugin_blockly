@@ -255,15 +255,112 @@ await _blk.reply(str(_blk.has_type('image')) + ',' + str(_blk.has_type('face')))
     assert "False,True" in result["replies"]
 
 
+def test_resolve_notice_event_kinds():
+    """通知类事件（撤回/戳一戳）应被识别为对应的事件类型。"""
+    from blocky.mock_event import MockEvent
+    from blocky.runtime import resolve_event_kind
+
+    recall = MockEvent(
+        message_str="",
+        raw_message={
+            "post_type": "notice",
+            "notice_type": "group_recall",
+            "group_id": "255918033",
+            "user_id": "1451173433",
+            "operator_id": "1451173433",
+            "message_id": 999,
+        },
+    )
+    assert resolve_event_kind(recall) == "recall"
+
+    poke = MockEvent(
+        raw_message={
+            "post_type": "notice",
+            "notice_type": "notify",
+            "group_id": "255918033",
+            "user_id": "1451173433",
+            "target_id": "2222",
+            "sub_type": "poke",
+        },
+    )
+    assert resolve_event_kind(poke) == "poke"
+
+    joined = MockEvent(
+        raw_message={
+            "post_type": "notice",
+            "notice_type": "group_increase",
+            "group_id": "255918033",
+            "sender_id": "1451173433",
+        },
+    )
+    assert resolve_event_kind(joined) == "member_increase"
+
+    plain = MockEvent(message_str="你好")
+    assert resolve_event_kind(plain) == "message"
+
+
 def test_event_type_and_ids():
+    """事件类型块返回本次执行对应的真实事件类型，而非程序配置。"""
+    from blocky.mock_event import MockContext, MockEvent
+    from blocky.runtime import run_program
+
     program = BlockyProgram(
         code="""
 await _blk.reply(_blk.get_event_type() + '|' + _blk.get_sender_id())
 """,
     )
-    program.event_type = "recall"
-    result = asyncio.run(run_sim(program, message="x"))
-    assert result["replies"] == ["recall|123456789"]
+    event = MockEvent(
+        message_str="",
+        raw_message={
+            "post_type": "notice",
+            "notice_type": "group_recall",
+            "group_id": "255918033",
+            "user_id": "1451173433",
+            "operator_id": "1451173433",
+            "message_id": 1024,
+        },
+    )
+
+    async def run():
+        await run_program(program, MockContext(), event)
+
+    asyncio.run(run())
+    assert event.sent_messages == ["recall|123456789"]
+
+
+def test_program_event_types_multi():
+    """event_type 支持逗号分隔的多事件；from_dict 会规范化并去重。"""
+    from blocky.program import BlockyProgram
+
+    program = BlockyProgram.from_dict(
+        {
+            "name": "multi",
+            "event_type": "message,recall,message,poke",
+            "enabled": True,
+        }
+    )
+    assert program.event_types == ["message", "recall", "poke"]
+
+    program2 = BlockyProgram.from_dict({"event_type": "unknown_event"})
+    assert program2.event_types == ["message"]
+
+
+def test_workspace_event_types_sync():
+    """from_dict 会从积木工作区中的多个事件入口块推断 event_type（兼容旧数据）。"""
+    from blocky.program import BlockyProgram
+
+    workspace = """{"blocks":{"languageVersion":0,"blocks":[
+        {"type":"blocky_event","id":"1","inputs":{"DO":{"block":{"type":"text","id":"t1"}}}},
+        {"type":"blocky_event_recall","id":"2"},
+        {"type":"blocky_event_poke","id":"3","next":{"block":{"type":"blocky_log","id":"4"}}}
+    ]}}"""
+    program = BlockyProgram.from_dict(
+        {
+            "workspace": workspace,
+            "event_type": "message",  # 旧版本保存的可能是 message
+        }
+    )
+    assert program.event_types == ["message", "recall", "poke"]
 
 
 def test_chat_block_models_ordered():

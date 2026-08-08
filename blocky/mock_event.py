@@ -47,6 +47,18 @@ def _build_segments(message_type: str) -> list:
     return [_MockSegment(_MockSegmentType(name))]
 
 
+def _make_message_obj(raw_message):
+    """构造带 ``raw_message`` 的模拟 ``message_obj``（用于模拟通知事件）。"""
+    if raw_message is None:
+        return None
+
+    class _RawObj:
+        def __init__(self, raw):
+            self.raw_message = raw
+
+    return _RawObj(raw_message)
+
+
 class MockEvent:
     """模拟的 AstrMessageEvent。"""
 
@@ -60,6 +72,7 @@ class MockEvent:
         is_admin: bool = False,
         is_private: bool = False,
         message_type: str = "text",
+        raw_message: dict | None = None,
     ) -> None:
         self.message_str = message_str
         self._sender_name = sender_name
@@ -73,6 +86,7 @@ class MockEvent:
         self._result = None
         self._force_stopped = False
         self.sent_messages: list[str] = []
+        self.message_obj = _make_message_obj(raw_message)
 
     def get_messages(self) -> list:
         return self._segments

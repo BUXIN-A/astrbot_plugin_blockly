@@ -29,7 +29,7 @@ try:  # AstrBot 以 data.plugins.<name>.main 的包形式加载插件
         BlockyProgram,
         new_id,
     )
-    from .blocky.runtime import run_program, simulate_program
+    from .blocky.runtime import resolve_event_kind, run_program, simulate_program
 except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
     from blocky.manager import BlockyManager
     from blocky.program import (
@@ -37,7 +37,7 @@ except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
         BlockyProgram,
         new_id,
     )
-    from blocky.runtime import run_program, simulate_program
+    from blocky.runtime import resolve_event_kind, run_program, simulate_program
 
 PLUGIN_NAME = "astrbot_plugin_blocky"
 # 监听优先级：远高于第三方插件默认值（0），仅次于 AstrBot 内置插件（maxsize）。
@@ -61,10 +61,7 @@ UPDATABLE_FIELDS = (
 )
 
 # 事件类型到程序 event_type 的映射（部分支持事件，保留旧版全部消息行为）
-EVENT_NOTICE_KINDS = {
-    "group_recall": "recall",
-    "group_increase": "member_increase",
-}
+# 事件类型判定见 blocky.runtime.resolve_event_kind
 
 # 消息段类型到程序 event_attr 的映射（用于消息属性过滤）
 EVENT_ATTR_SEGMENT_KINDS = {
@@ -131,7 +128,7 @@ class BlockyPlugin(Star):
         """
         if not self._plugin_enabled():
             return
-        kind = self._event_kind(event)
+        kind = resolve_event_kind(event)
         if kind == "message":
             message = (event.message_str or "").strip()
             if not message or self._is_skipped(message):
@@ -141,21 +138,71 @@ class BlockyPlugin(Star):
             programs = [
                 p
                 for p in self.manager.enabled_programs()
-                if p.event_type == "message"
+                if "message" in p.event_types
                 and p.matches(event)
                 and self._attr_matches(p, event)
             ]
         else:
+            self.logger.info(
+                "Blocky 收到通知事件 kind=%s, sender=%s，开始分派程序",
+                kind,
+                event.get_sender_id(),
+            )
             if self.config.get("admin_only_programs") and not event.is_admin():
                 return
             programs = [
-                p
-                for p in self.manager.enabled_programs()
-                if p.event_type == kind
+                p for p in self.manager.enabled_programs() if kind in p.event_types
             ]
+            # 旧版本生成的积木代码不含事件分支判断（只有 message 逻辑），
+            # 通知事件执行它会造成误行为，跳过并提示用户重新保存一次。
+            programs = self._filter_stale_code(kind, programs)
         if not programs:
+            if kind == "message":
+                for p in self.manager.enabled_programs():
+                    self.logger.debug(
+                        "Blocky 事件 message 未命中程序 %s：event_types=%s attr=%s",
+                        p.name,
+                        p.event_types,
+                        p.event_attr,
+                    )
+            else:
+                self.logger.info(
+                    "Blocky 事件 %s 未命中任何程序（当前启用程序事件：%s）",
+                    kind,
+                    [p.event_types for p in self.manager.enabled_programs()],
+                )
             return
+        self.logger.debug(
+            "Blocky 事件 %s 命中 %d 个程序：%s",
+            kind,
+            len(programs),
+            [p.name for p in programs],
+        )
         await self._run_programs(event, programs)
+
+    def _filter_stale_code(
+        self, kind: str, programs: list[BlockyProgram]
+    ) -> list[BlockyProgram]:
+        """过滤掉旧版本生成的、不含事件分支判断的积木程序。
+
+        这类程序最初只保存了画布上第一个事件块的逻辑，在新版本的分派机制下
+        会造成通知事件误执行消息分支，这里跳过并提示用户重新保存。
+        """
+        filtered: list[BlockyProgram] = []
+        for program in programs:
+            if (
+                program.content_type == CONTENT_BLOCKLY
+                and "_blk.event_type" not in (program.code or "")
+            ):
+                self.logger.info(
+                    "Blocky 程序 %s 的代码为旧版本生成（不含事件分支判断），"
+                    "已跳过 %s 事件；请在弹出的 WebUI 编辑器中打开并保存一次程序",
+                    program.name,
+                    kind,
+                )
+                continue
+            filtered.append(program)
+        return filtered
 
     async def _run_programs(
         self,
@@ -600,25 +647,6 @@ class BlockyPlugin(Star):
         return json_response({"ok": True, "imported": count})
 
     # ---------- 内部工具 ----------
-
-    @staticmethod
-    def _event_kind(event: AstrMessageEvent) -> str:
-        """判断事件类别：message 或具体通知事件类型。
-
-        AstrBot 把 OneBot 通知（撤回/成员加入/戳一戳等）统一包装为消息事件，
-        原始事件保存在 ``message_obj.raw_message`` 中，据此区分。
-        """
-        raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
-        if isinstance(raw, dict) and raw.get("post_type") == "notice":
-            notice_type = raw.get("notice_type")
-            if notice_type in EVENT_NOTICE_KINDS:
-                return EVENT_NOTICE_KINDS[notice_type]
-            if notice_type == "notify" and raw.get("sub_type") == "poke":
-                return "poke"
-            if notice_type == "friend_poke":
-                return "poke"
-            return "other_notice"
-        return "message"
 
     @staticmethod
     def _attr_matches(program: BlockyProgram, event: AstrMessageEvent) -> bool:

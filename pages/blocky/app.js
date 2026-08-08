@@ -477,17 +477,26 @@ function defineBlocks() {
 function registerPythonGenerator() {
   const py = Blockly.Python;
 
-  // 事件入口块：DO 是程序入口，生成其整棵子树作为顶层代码。
-  // 不能用 statementToCode：它会为整段代码追加 Blockly 缩进，导致顶层代码被整体
-  // 缩进，再经后端 wrap 成函数体后出现 unexpected indent / unindent 语法错误。
-  py.forBlock["blocky_event"] = function (block) {
-    const target = block.getInputTargetBlock("DO");
-    if (!target) return "";
-    return py.blockToCode(target);
-  };
-  py.forBlock["blocky_event_recall"] = py.forBlock["blocky_event"];
-  py.forBlock["blocky_event_member_increase"] = py.forBlock["blocky_event"];
-  py.forBlock["blocky_event_poke"] = py.forBlock["blocky_event"];
+  // 事件入口块：把整棵子树包进 `if _blk.event_type == '类型':` 分支。
+  // 一个程序可以有多个事件入口块，每种事件对应一个独立分支；
+  // 不能用 statementToCode：它会为整段代码追加 Blockly 缩进，导致顶层代码被
+  // 整体缩进，再经后端 wrap 成函数体后出现 unexpected indent 语法错误。
+  function indentCode(code) {
+    return code
+      .split("\n")
+      .map((l) => (l.trim() ? "    " + l : l))
+      .join("\n");
+  }
+  for (const [blockType, eventType] of Object.entries(EVENT_BLOCK_MAP)) {
+    py.forBlock[blockType] = function (block) {
+      const target = block.getInputTargetBlock("DO");
+      if (!target) return "";
+      const sub = py.blockToCode(target);
+      return (
+        "if _blk.event_type == '" + eventType + "':\n" + indentCode(sub) + "\n"
+      );
+    };
+  }
 
   const simpleValueBlocks = {
     blocky_get_message: "_blk.get_message()",
@@ -814,13 +823,18 @@ function applyEditorMode(mode) {
 
 function generateCode() {
   try {
-    // 只生成主入口事件块（第一个事件积木）下的逻辑；画布上未连接的游离块不参与生成，
-    // 避免游离的「返回消息」等块被意外执行。
+    // 每个事件入口积木各生成一个独立的事件分支；画布上未连接的游离块不参与
+    // 生成，避免游离的「返回消息」等块被意外执行。
     const blocks = workspace.getTopBlocks(true);
     const entries = blocks.filter((b) => EVENT_BLOCK_MAP[b.type]);
     Blockly.Python.init(workspace);
     if (entries.length) {
-      return Blockly.Python.blockToCode(entries[0], true) || "";
+      return (
+        entries
+          .map((b) => Blockly.Python.blockToCode(b, true))
+          .filter((s) => s && s.trim())
+          .join("\n") || ""
+      );
     }
     return Blockly.Python.workspaceToCode(workspace);
   } catch (err) {
@@ -844,15 +858,13 @@ function collectForm() {
   if (currentMode === "blockly") {
     workspaceState = Blockly.serialization.workspaces.save(workspace);
     code = generateCode();
-    const entry = workspace
+    const entries = workspace
       .getTopBlocks(true)
-      .find((b) => EVENT_BLOCK_MAP[b.type]);
-    if (entry) {
-      eventType = EVENT_BLOCK_MAP[entry.type];
-      eventAttr =
-        entry.type === "blocky_event"
-          ? entry.getFieldValue("ATTR") || "any"
-          : "any";
+      .filter((b) => EVENT_BLOCK_MAP[b.type]);
+    if (entries.length) {
+      eventType = entries.map((b) => EVENT_BLOCK_MAP[b.type]).join(",");
+      const msgEntry = entries.find((b) => b.type === "blocky_event");
+      eventAttr = msgEntry ? msgEntry.getFieldValue("ATTR") || "any" : "any";
     }
   } else {
     workspaceState = currentWorkspaceState;
