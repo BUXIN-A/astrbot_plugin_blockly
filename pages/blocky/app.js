@@ -467,8 +467,11 @@ function initWorkspace(isDark) {
     scrollbars: true,
     sounds: false,
   });
-  workspace.addChangeListener(() => {
+  workspace.addChangeListener((e) => {
     if (loading) return;
+    // UI 类事件（主题切换 THEME_CHANGE、选中、视图变化等）不代表内容被修改，
+    // 否则刚进入页面时 setTheme 就会把 dirty 置位，导致切换程序误弹"未保存"提示。
+    if (e && e.isUiEvent) return;
     dirty = true;
   });
 }
