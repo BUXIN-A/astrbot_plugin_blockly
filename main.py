@@ -1,10 +1,10 @@
-"""Blocky 可视化编程插件主入口。
+"""Blockly 可视化编程插件主入口。
 
 本插件为 AstrBot 提供可视化编程能力：
 - 使用 Blockly 积木（或直接编写 Python）创建"程序"；
 - 监听全部消息事件，命中触发条件的程序会被执行（可回复/劫持消息，也可放行给 AstrBot）；
 - 通过插件 Pages 提供独立的 WebUI 编辑器；
-- 通过 /blocky 聊天指令提供轻量的程序管理能力。
+- 通过 /blockly 聊天指令提供轻量的程序管理能力。
 """
 
 from __future__ import annotations
@@ -23,23 +23,23 @@ from astrbot.core.star.filter.command import GreedyStr
 from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 try:  # AstrBot 以 data.plugins.<name>.main 的包形式加载插件
-    from .blocky.manager import BlockyManager
-    from .blocky.program import (
+    from .blockly.manager import BlocklyManager
+    from .blockly.program import (
         CONTENT_BLOCKLY,
-        BlockyProgram,
+        BlocklyProgram,
         new_id,
     )
-    from .blocky.runtime import resolve_event_kind, run_program, simulate_program
+    from .blockly.runtime import resolve_event_kind, run_program, simulate_program
 except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
-    from blocky.manager import BlockyManager
-    from blocky.program import (
+    from blockly.manager import BlocklyManager
+    from blockly.program import (
         CONTENT_BLOCKLY,
-        BlockyProgram,
+        BlocklyProgram,
         new_id,
     )
-    from blocky.runtime import resolve_event_kind, run_program, simulate_program
+    from blockly.runtime import resolve_event_kind, run_program, simulate_program
 
-PLUGIN_NAME = "astrbot_plugin_blocky"
+PLUGIN_NAME = "astrbot_plugin_blockly"
 # 监听优先级：远高于第三方插件默认值（0），仅次于 AstrBot 内置插件（maxsize）。
 # 保证本插件最先处理消息，这样「返回消息/停止事件传播」劫持事件后其他插件不会再收到该消息。
 DEFAULT_PRIORITY = 1000
@@ -61,7 +61,7 @@ UPDATABLE_FIELDS = (
 )
 
 # 事件类型到程序 event_type 的映射（部分支持事件，保留旧版全部消息行为）
-# 事件类型判定见 blocky.runtime.resolve_event_kind
+# 事件类型判定见 blockly.runtime.resolve_event_kind
 
 # 消息段类型到程序 event_attr 的映射（用于消息属性过滤）
 EVENT_ATTR_SEGMENT_KINDS = {
@@ -75,13 +75,13 @@ EVENT_ATTR_SEGMENT_KINDS = {
 }
 
 
-class BlockyPlugin(Star):
+class BlocklyPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None) -> None:
         super().__init__(context)
         self.config = config or {}
         plugin_name = getattr(self, "name", None) or PLUGIN_NAME
         data_dir = Path(get_astrbot_plugin_data_path()) / plugin_name
-        self.manager = BlockyManager(data_dir)
+        self.manager = BlocklyManager(data_dir)
         self._register_web_apis()
 
     # ---------- 生命周期 ----------
@@ -90,7 +90,7 @@ class BlockyPlugin(Star):
         """插件激活时调用：应用配置的监听优先级并记录加载状态。"""
         self._apply_config_priority()
         self.logger.info(
-            "Blocky 插件初始化完成，已加载 %d 个程序",
+            "Blockly 插件初始化完成，已加载 %d 个程序",
             len(self.manager.list_programs()),
         )
 
@@ -146,7 +146,7 @@ class BlockyPlugin(Star):
             ]
         else:
             self.logger.info(
-                "Blocky 收到通知事件 kind=%s, sender=%s，开始分派程序",
+                "Blockly 收到通知事件 kind=%s, sender=%s，开始分派程序",
                 kind,
                 event.get_sender_id(),
             )
@@ -162,20 +162,20 @@ class BlockyPlugin(Star):
             if kind == "message":
                 for p in self.manager.enabled_programs():
                     self.logger.debug(
-                        "Blocky 事件 message 未命中程序 %s：event_types=%s attr=%s",
+                        "Blockly 事件 message 未命中程序 %s：event_types=%s attr=%s",
                         p.name,
                         p.event_types,
                         p.event_attr,
                     )
             else:
                 self.logger.info(
-                    "Blocky 事件 %s 未命中任何程序（当前启用程序事件：%s）",
+                    "Blockly 事件 %s 未命中任何程序（当前启用程序事件：%s）",
                     kind,
                     [p.event_types for p in self.manager.enabled_programs()],
                 )
             return
         self.logger.debug(
-            "Blocky 事件 %s 命中 %d 个程序：%s",
+            "Blockly 事件 %s 命中 %d 个程序：%s",
             kind,
             len(programs),
             [p.name for p in programs],
@@ -183,21 +183,21 @@ class BlockyPlugin(Star):
         await self._run_programs(event, programs)
 
     def _filter_stale_code(
-        self, kind: str, programs: list[BlockyProgram]
-    ) -> list[BlockyProgram]:
+        self, kind: str, programs: list[BlocklyProgram]
+    ) -> list[BlocklyProgram]:
         """过滤掉旧版本生成的、不含事件分支判断的积木程序。
 
         这类程序最初只保存了画布上第一个事件块的逻辑，在新版本的分派机制下
         会造成通知事件误执行消息分支，这里跳过并提示用户重新保存。
         """
-        filtered: list[BlockyProgram] = []
+        filtered: list[BlocklyProgram] = []
         for program in programs:
             if (
                 program.content_type == CONTENT_BLOCKLY
                 and "_blk.event_type" not in (program.code or "")
             ):
                 self.logger.info(
-                    "Blocky 程序 %s 的代码为旧版本生成（不含事件分支判断），"
+                    "Blockly 程序 %s 的代码为旧版本生成（不含事件分支判断），"
                     "已跳过 %s 事件；请在弹出的 WebUI 编辑器中打开并保存一次程序",
                     program.name,
                     kind,
@@ -209,7 +209,7 @@ class BlockyPlugin(Star):
     async def _run_programs(
         self,
         event: AstrMessageEvent,
-        programs: list[BlockyProgram],
+        programs: list[BlocklyProgram],
     ) -> None:
         """按优先级依次执行程序；事件被停止（返回消息/停止积木）后不再执行后续程序。"""
         for program in programs:
@@ -220,12 +220,12 @@ class BlockyPlugin(Star):
             except asyncio.TimeoutError:
                 program.mark_run(error="执行超时", success=False)
                 self.logger.warning(
-                    "Blocky 程序 %s(%s) 执行超时", program.name, program.id
+                    "Blockly 程序 %s(%s) 执行超时", program.name, program.id
                 )
             except Exception as exc:  # noqa: BLE001 - 单个程序出错不影响其他程序
                 program.mark_run(error=str(exc), success=False)
                 self.logger.error(
-                    "Blocky 程序 %s(%s) 执行出错：%s", program.name, program.id, exc
+                    "Blockly 程序 %s(%s) 执行出错：%s", program.name, program.id, exc
                 )
             try:
                 await self.manager.update(program)
@@ -234,12 +234,12 @@ class BlockyPlugin(Star):
             if event.is_stopped():
                 break
 
-    # ---------- /blocky 聊天指令（仅管理员） ----------
+    # ---------- /blockly 聊天指令（仅管理员） ----------
 
     @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("blocky", alias={"blk"})
-    async def blocky(self, event: AstrMessageEvent, args: GreedyStr = "") -> None:
-        """Blocky 程序管理指令。"""
+    @filter.command("blockly", alias={"blk"})
+    async def blockly(self, event: AstrMessageEvent, args: GreedyStr = "") -> None:
+        """Blockly 程序管理指令。"""
         parts = (args or "").strip().split()
         if not parts:
             yield event.plain_result(self._command_help())
@@ -268,28 +268,28 @@ class BlockyPlugin(Star):
             else:
                 yield event.plain_result(self._command_help())
         except Exception as exc:
-            self.logger.exception("执行 /blocky 指令失败")
+            self.logger.exception("执行 /blockly 指令失败")
             yield event.plain_result(f"执行出错：{exc}")
 
     def _command_help(self) -> str:
-        """返回 /blocky 指令帮助文本。"""
+        """返回 /blockly 指令帮助文本。"""
         return (
-            "Blocky 可视化编程指令：\n"
-            "/blocky list - 列出所有程序\n"
-            "/blocky new <名称> - 新建程序\n"
-            "/blocky on <id> - 开启程序\n"
-            "/blocky off <id> - 关闭程序\n"
-            "/blocky delete <id> - 删除程序\n"
-            "/blocky reload - 从磁盘重新加载\n\n"
-            "更完整的功能请使用 WebUI（插件详情页打开 Blocky 页面）。"
+            "Blockly 可视化编程指令：\n"
+            "/blockly list - 列出所有程序\n"
+            "/blockly new <名称> - 新建程序\n"
+            "/blockly on <id> - 开启程序\n"
+            "/blockly off <id> - 关闭程序\n"
+            "/blockly delete <id> - 删除程序\n"
+            "/blockly reload - 从磁盘重新加载\n\n"
+            "更完整的功能请使用 WebUI（插件详情页打开 Blockly 页面）。"
         )
 
     def _format_program_list(self) -> str:
         """格式化程序列表文本。"""
         programs = self.manager.list_programs()
         if not programs:
-            return "暂无程序。使用 /blocky new <名称> 创建，或到 WebUI 编辑。"
-        lines = ["Blocky 程序列表："]
+            return "暂无程序。使用 /blockly new <名称> 创建，或到 WebUI 编辑。"
+        lines = ["Blockly 程序列表："]
         for program in programs:
             state = "开" if program.enabled else "关"
             ctype = "代码" if program.content_type == "python" else "积木"
@@ -303,7 +303,7 @@ class BlockyPlugin(Star):
         """开启或关闭指定程序。"""
         program = self.manager.get(pid)
         if not program:
-            return f"未找到程序：{pid}。可使用 /blocky list 查看。"
+            return f"未找到程序：{pid}。可使用 /blockly list 查看。"
         program.enabled = enabled
         await self.manager.update(program)
         return f"程序 {program.name} 已{'开启' if enabled else '关闭'}。"
@@ -330,46 +330,46 @@ class BlockyPlugin(Star):
             f"{prefix}/programs",
             self.api_list_programs,
             ["GET"],
-            "获取 Blocky 程序列表",
+            "获取 Blockly 程序列表",
         )
         ctx.register_web_api(
-            f"{prefix}/programs", self.api_create_program, ["POST"], "新建 Blocky 程序"
+            f"{prefix}/programs", self.api_create_program, ["POST"], "新建 Blockly 程序"
         )
         ctx.register_web_api(
             f"{prefix}/programs/<pid>",
             self.api_get_program,
             ["GET"],
-            "获取单个 Blocky 程序",
+            "获取单个 Blockly 程序",
         )
         ctx.register_web_api(
             f"{prefix}/programs/<pid>",
             self.api_update_program,
             ["POST"],
-            "更新 Blocky 程序",
+            "更新 Blockly 程序",
         )
         ctx.register_web_api(
             f"{prefix}/programs/<pid>/delete",
             self.api_delete_program,
             ["POST"],
-            "删除 Blocky 程序",
+            "删除 Blockly 程序",
         )
         ctx.register_web_api(
             f"{prefix}/programs/<pid>/duplicate",
             self.api_duplicate_program,
             ["POST"],
-            "复制 Blocky 程序",
+            "复制 Blockly 程序",
         )
         ctx.register_web_api(
             f"{prefix}/programs/<pid>/toggle",
             self.api_toggle_program,
             ["POST"],
-            "开关 Blocky 程序",
+            "开关 Blockly 程序",
         )
         ctx.register_web_api(
             f"{prefix}/programs/<pid>/test",
             self.api_test_program,
             ["POST"],
-            "测试运行 Blocky 程序",
+            "测试运行 Blockly 程序",
         )
         ctx.register_web_api(
             f"{prefix}/models",
@@ -378,22 +378,22 @@ class BlockyPlugin(Star):
             "获取可用 AI 模型列表",
         )
         ctx.register_web_api(
-            f"{prefix}/export", self.api_export, ["GET"], "导出全部 Blocky 程序"
+            f"{prefix}/export", self.api_export, ["GET"], "导出全部 Blockly 程序"
         )
         ctx.register_web_api(
             f"{prefix}/export/<pid>",
             self.api_export_program,
             ["GET"],
-            "导出单个 Blocky 程序",
+            "导出单个 Blockly 程序",
         )
         ctx.register_web_api(
-            f"{prefix}/import", self.api_import, ["POST"], "导入 Blocky 程序（JSON）"
+            f"{prefix}/import", self.api_import, ["POST"], "导入 Blockly 程序（JSON）"
         )
         ctx.register_web_api(
             f"{prefix}/import/file",
             self.api_import_file,
             ["POST"],
-            "导入 Blocky 程序（文件）",
+            "导入 Blockly 程序（文件）",
         )
 
     async def api_list_programs(self) -> Any:
@@ -407,7 +407,7 @@ class BlockyPlugin(Star):
             }
         )
 
-    def _program_summary(self, program: BlockyProgram) -> dict:
+    def _program_summary(self, program: BlocklyProgram) -> dict:
         """轻量化的程序数据（列表用，剔除 workspace/code 大字段）。"""
         data = program.to_dict()
         data.pop("workspace", None)
@@ -443,7 +443,7 @@ class BlockyPlugin(Star):
             if key in UPDATABLE_FIELDS:
                 data[key] = body[key]
         data["updated_at"] = time.time()
-        updated = BlockyProgram.from_dict(data)
+        updated = BlocklyProgram.from_dict(data)
         await self.manager.update(updated)
         return json_response({"ok": True, "program": updated.to_dict()})
 
@@ -523,7 +523,7 @@ class BlockyPlugin(Star):
     async def api_export(self) -> Any:
         """导出全部程序为 JSON 文件。"""
         data = self._export_data(self.manager.list_programs())
-        return self._json_file_response(data, "blocky_programs.json")
+        return self._json_file_response(data, "blockly_programs.json")
 
     async def api_export_program(self, pid: str) -> Any:
         """导出单个程序为 JSON 文件。"""
@@ -532,7 +532,7 @@ class BlockyPlugin(Star):
             return error_response("程序不存在", status_code=404)
         data = self._export_data([program])
         return self._json_file_response(
-            data, f"blocky_{program.name}_{program.id}.json"
+            data, f"blockly_{program.name}_{program.id}.json"
         )
 
     async def api_import(self) -> Any:
@@ -559,10 +559,10 @@ class BlockyPlugin(Star):
             return error_response(f"文件解析失败：{exc}", status_code=400)
         return await self._import_data(body)
 
-    def _export_data(self, programs: list[BlockyProgram]) -> dict:
+    def _export_data(self, programs: list[BlocklyProgram]) -> dict:
         """构造导出的 JSON 结构。"""
         return {
-            "format": "astrbot_plugin_blocky",
+            "format": "astrbot_plugin_blockly",
             "version": 1,
             "exported_at": time.time(),
             "programs": [p.to_dict() for p in programs],
@@ -602,7 +602,7 @@ class BlockyPlugin(Star):
         if not items:
             return error_response("导入数据格式不正确", status_code=400)
 
-        existing_by_name: dict[str, BlockyProgram] = {}
+        existing_by_name: dict[str, BlocklyProgram] = {}
         for p in self.manager.list_programs():
             existing_by_name.setdefault(p.name.strip().lower(), p)
 
@@ -624,9 +624,9 @@ class BlockyPlugin(Star):
             )
 
         count = 0
-        name_map: dict[str, BlockyProgram] = dict(existing_by_name)
+        name_map: dict[str, BlocklyProgram] = dict(existing_by_name)
         for item in items:
-            program = BlockyProgram.from_dict(item)
+            program = BlocklyProgram.from_dict(item)
             if not str(program.name or "").strip():
                 program.name = "未命名程序"
             name_key = program.name.strip().lower()
@@ -651,7 +651,7 @@ class BlockyPlugin(Star):
     # ---------- 内部工具 ----------
 
     @staticmethod
-    def _attr_matches(program: BlockyProgram, event: AstrMessageEvent) -> bool:
+    def _attr_matches(program: BlocklyProgram, event: AstrMessageEvent) -> bool:
         """按程序的 ``event_attr`` 过滤消息内容类型；any 表示不限制。"""
         attr = getattr(program, "event_attr", "any") or "any"
         if attr == "any":

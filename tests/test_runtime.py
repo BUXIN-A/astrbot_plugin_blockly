@@ -1,10 +1,10 @@
-"""Blocky 受限执行引擎的单元测试。"""
+"""Blockly 受限执行引擎的单元测试。"""
 
 import asyncio
 
-from blocky.program import BlockyProgram
-from blocky.runtime import _assert_safe_source, wrap_code
-from blocky.runtime import simulate_program as run_sim
+from blockly.program import BlocklyProgram
+from blockly.runtime import _assert_safe_source, wrap_code
+from blockly.runtime import simulate_program as run_sim
 
 
 def test_wrap_code_builds_async_function():
@@ -38,14 +38,14 @@ def test_wrap_code_accepts_multiple_statements():
 
 
 def test_reply_continues():
-    program = BlockyProgram(code="await _blk.reply('你好')")
+    program = BlocklyProgram(code="await _blk.reply('你好')")
     result = asyncio.run(run_sim(program, message="hi"))
     assert "你好" in result["replies"]
     assert result["stopped"] is False
 
 
 def test_return_msg_stops():
-    program = BlockyProgram(code="await _blk.return_msg('再见')")
+    program = BlocklyProgram(code="await _blk.return_msg('再见')")
     result = asyncio.run(run_sim(program, message="hi"))
     assert "再见" in result["replies"]
     assert result["stopped"] is True
@@ -53,14 +53,14 @@ def test_return_msg_stops():
 
 def test_no_stop_block_by_default():
     """未使用返回/停止积木时，事件不停止（交由 AstrBot 继续处理）。"""
-    program = BlockyProgram(code="await _blk.reply('hi')")
+    program = BlocklyProgram(code="await _blk.reply('hi')")
     result = asyncio.run(run_sim(program, message="x"))
     assert result["replies"] == ["hi"]
     assert result["stopped"] is False
 
 
 def test_empty_program_does_not_stop():
-    program = BlockyProgram(code="")
+    program = BlocklyProgram(code="")
     result = asyncio.run(run_sim(program, message="hi"))
     assert result["stopped"] is False
     assert result["error"] == ""
@@ -70,27 +70,27 @@ def test_blockly_with_blocks_but_no_code_reports_error():
     """积木程序有积木内容但缺少生成的 code 时，应给出明确错误而非静默跳过。"""
     workspace = (
         '{"blocks": {"languageVersion": 0, '
-        '"blocks": [{"type": "blocky_event"}]}}'
+        '"blocks": [{"type": "blockly_event"}]}}'
     )
-    program = BlockyProgram(content_type="blockly", workspace=workspace, code="")
+    program = BlocklyProgram(content_type="blockly", workspace=workspace, code="")
     result = asyncio.run(run_sim(program, message="hi"))
     assert result["error"] != ""
 
 
 def test_forward_block_keeps_running():
-    program = BlockyProgram(code="_blk.forward()")
+    program = BlocklyProgram(code="_blk.forward()")
     result = asyncio.run(run_sim(program, message="hi"))
     assert result["stopped"] is False
 
 
 def test_stop_block():
-    program = BlockyProgram(code="_blk.stop()")
+    program = BlocklyProgram(code="_blk.stop()")
     result = asyncio.run(run_sim(program, message="hi"))
     assert result["stopped"] is True
 
 
 def test_chat_block():
-    program = BlockyProgram(code="await _blk.reply(await _blk.chat('天气'))")
+    program = BlocklyProgram(code="await _blk.reply(await _blk.chat('天气'))")
     result = asyncio.run(
         run_sim(program, message="hi", chat_responses={"天气": "晴天"})
     )
@@ -98,7 +98,7 @@ def test_chat_block():
 
 
 def test_chat_uses_authorized_model_when_current_not_allowed():
-    program = BlockyProgram(
+    program = BlocklyProgram(
         models=["qwen-max"],
         code="await _blk.reply(await _blk.chat('天气'))",
     )
@@ -115,7 +115,7 @@ def test_chat_uses_authorized_model_when_current_not_allowed():
 
 def test_chat_allowlist_compound_provider_model():
     """白名单条目为 提供商ID:模型ID，当前模型不在名单时改用白名单模型。"""
-    program = BlockyProgram(
+    program = BlocklyProgram(
         models=["mock_provider:qwen-max"],
         code="await _blk.reply(await _blk.chat('天气'))",
     )
@@ -133,7 +133,7 @@ def test_chat_allowlist_compound_provider_model():
 
 def test_chat_allowlist_current_provider_model_allowed():
     """当前 提供商+模型 已在白名单中时不切换模型。"""
-    program = BlockyProgram(
+    program = BlocklyProgram(
         models=["mock_provider:mock-model"],
         code="await _blk.reply(await _blk.chat('天气'))",
     )
@@ -150,7 +150,7 @@ def test_chat_allowlist_current_provider_model_allowed():
 
 
 def test_message_info_blocks():
-    program = BlockyProgram(
+    program = BlocklyProgram(
         code="""
 name = _blk.get_sender_name()
 msg = _blk.get_message()
@@ -162,7 +162,7 @@ await _blk.reply(name + ': ' + msg)
 
 
 def test_admin_and_private_flags():
-    program = BlockyProgram(
+    program = BlocklyProgram(
         code="""
 await _blk.reply('admin=' + str(_blk.is_admin()) + ' private=' + str(_blk.is_private()))
 """,
@@ -172,25 +172,25 @@ await _blk.reply('admin=' + str(_blk.is_admin()) + ' private=' + str(_blk.is_pri
 
 
 def test_send_block():
-    program = BlockyProgram(code="await _blk.send('mock:group:g1', '群消息')")
+    program = BlocklyProgram(code="await _blk.send('mock:group:g1', '群消息')")
     result = asyncio.run(run_sim(program, message="x"))
     assert ("mock:group:g1", "群消息") in result["sends"]
 
 
 def test_timeout():
-    program = BlockyProgram(code="await _blk.sleep(999999)")
+    program = BlocklyProgram(code="await _blk.sleep(999999)")
     result = asyncio.run(run_sim(program, message="hi", timeout=0.05))
     assert result["error"] == "执行超时"
 
 
 def test_syntax_error_reported():
-    program = BlockyProgram(code="def broken(")
+    program = BlocklyProgram(code="def broken(")
     result = asyncio.run(run_sim(program, message="hi"))
     assert "语法错误" in result["error"]
 
 
 def test_safe_builtins_block_open():
-    program = BlockyProgram(
+    program = BlocklyProgram(
         code="""
 try:
     _ = open('/etc/hostname')
@@ -206,27 +206,27 @@ await _blk.reply(result)
 
 def test_magic_attribute_blocked():
     """AST 静态检查阻断 ``().__class__`` 等沙箱逃逸。"""
-    program = BlockyProgram(code="await _blk.reply(str(().__class__))")
+    program = BlocklyProgram(code="await _blk.reply(str(().__class__))")
     result = asyncio.run(run_sim(program, message="x"))
     assert "禁止" in result["error"]
 
 
 def test_double_underscore_name_blocked():
     """AST 静态检查阻断 ``__import__`` 等魔术名称。"""
-    program = BlockyProgram(code="await _blk.reply(str(__import__))")
+    program = BlocklyProgram(code="await _blk.reply(str(__import__))")
     result = asyncio.run(run_sim(program, message="x"))
     assert "禁止" in result["error"]
 
 
 def test_import_blocked():
     """AST 静态检查阻断 import 语句。"""
-    program = BlockyProgram(code="import os\nawait _blk.reply('x')")
+    program = BlocklyProgram(code="import os\nawait _blk.reply('x')")
     result = asyncio.run(run_sim(program, message="x"))
     assert "禁止" in result["error"]
 
 
 def test_math_and_random_available():
-    program = BlockyProgram(
+    program = BlocklyProgram(
         code="""
 await _blk.reply(str(math.floor(3.7)) + ' ' + str(int(random.random() >= 0 or 1)))
 """,
@@ -236,7 +236,7 @@ await _blk.reply(str(math.floor(3.7)) + ' ' + str(int(random.random() >= 0 or 1)
 
 
 def test_message_type_text_and_not():
-    program = BlockyProgram(
+    program = BlocklyProgram(
         code="await _blk.reply(_blk.get_message_type())",
     )
     result = asyncio.run(run_sim(program, message="hi", message_type="text"))
@@ -246,7 +246,7 @@ def test_message_type_text_and_not():
 
 
 def test_has_type_blocks():
-    program = BlockyProgram(
+    program = BlocklyProgram(
         code="""
 await _blk.reply(str(_blk.has_type('image')) + ',' + str(_blk.has_type('face')))
 """,
@@ -257,8 +257,8 @@ await _blk.reply(str(_blk.has_type('image')) + ',' + str(_blk.has_type('face')))
 
 def test_resolve_notice_event_kinds():
     """通知类事件（撤回/戳一戳）应被识别为对应的事件类型。"""
-    from blocky.mock_event import MockEvent
-    from blocky.runtime import resolve_event_kind
+    from blockly.mock_event import MockEvent
+    from blockly.runtime import resolve_event_kind
 
     recall = MockEvent(
         message_str="",
@@ -301,10 +301,10 @@ def test_resolve_notice_event_kinds():
 
 def test_event_type_and_ids():
     """事件类型块返回本次执行对应的真实事件类型，而非程序配置。"""
-    from blocky.mock_event import MockContext, MockEvent
-    from blocky.runtime import run_program
+    from blockly.mock_event import MockContext, MockEvent
+    from blockly.runtime import run_program
 
-    program = BlockyProgram(
+    program = BlocklyProgram(
         code="""
 await _blk.reply(_blk.get_event_type() + '|' + _blk.get_sender_id())
 """,
@@ -330,9 +330,9 @@ await _blk.reply(_blk.get_event_type() + '|' + _blk.get_sender_id())
 
 def test_program_event_types_multi():
     """event_type 支持逗号分隔的多事件；from_dict 会规范化并去重。"""
-    from blocky.program import BlockyProgram
+    from blockly.program import BlocklyProgram
 
-    program = BlockyProgram.from_dict(
+    program = BlocklyProgram.from_dict(
         {
             "name": "multi",
             "event_type": "message,recall,message,poke",
@@ -341,20 +341,20 @@ def test_program_event_types_multi():
     )
     assert program.event_types == ["message", "recall", "poke"]
 
-    program2 = BlockyProgram.from_dict({"event_type": "unknown_event"})
+    program2 = BlocklyProgram.from_dict({"event_type": "unknown_event"})
     assert program2.event_types == ["message"]
 
 
 def test_workspace_event_types_sync():
     """from_dict 会从积木工作区中的多个事件入口块推断 event_type（兼容旧数据）。"""
-    from blocky.program import BlockyProgram
+    from blockly.program import BlocklyProgram
 
     workspace = """{"blocks":{"languageVersion":0,"blocks":[
-        {"type":"blocky_event","id":"1","inputs":{"DO":{"block":{"type":"text","id":"t1"}}}},
-        {"type":"blocky_event_recall","id":"2"},
-        {"type":"blocky_event_poke","id":"3","next":{"block":{"type":"blocky_log","id":"4"}}}
+        {"type":"blockly_event","id":"1","inputs":{"DO":{"block":{"type":"text","id":"t1"}}}},
+        {"type":"blockly_event_recall","id":"2"},
+        {"type":"blockly_event_poke","id":"3","next":{"block":{"type":"blockly_log","id":"4"}}}
     ]}}"""
-    program = BlockyProgram.from_dict(
+    program = BlocklyProgram.from_dict(
         {
             "workspace": workspace,
             "event_type": "message",  # 旧版本保存的可能是 message
@@ -365,7 +365,7 @@ def test_workspace_event_types_sync():
 
 def test_chat_block_models_ordered():
     """AI 积木「指定模型」按顺序尝试；成功即返回。"""
-    program = BlockyProgram(
+    program = BlocklyProgram(
         models=[],
         code="""
 await _blk.reply(await _blk.chat('天气', 'mock_provider:qwen-max,mock_provider:mock-model'))
@@ -381,10 +381,10 @@ def test_chat_models_all_failed_raises():
     """全部指定模型失败时报错并给出各模型原因。"""
 
     async def failing_run():
-        from blocky.mock_event import MockContext, MockEvent
-        from blocky.runtime import run_program
+        from blockly.mock_event import MockContext, MockEvent
+        from blockly.runtime import run_program
 
-        program = BlockyProgram(
+        program = BlocklyProgram(
             models=[],
             code="""
 await _blk.reply(await _blk.chat('天气', 'bad_provider:bad-model'))
@@ -414,7 +414,7 @@ def test_tool_generated_code_compiles():
     source = wrap_code(code)
     _assert_safe_source(source)
     compile(source, "<test>", "exec")
-    program = BlockyProgram(code=code)
+    program = BlocklyProgram(code=code)
     result = asyncio.run(run_sim(program, message="hi"))
     assert result["error"] == ""
     assert result["replies"] and "hi" in result["replies"][0]
@@ -422,7 +422,7 @@ def test_tool_generated_code_compiles():
 
 def test_ai_tool_registered_and_called():
     """「AI 工具」注册后由工具循环调用，返回值作为结果返回给 AI。"""
-    program = BlockyProgram(
+    program = BlocklyProgram(
         code="""
 async def blk_tool_abc():
     await _blk.reply('工具被调用')
@@ -439,7 +439,7 @@ await _blk.reply(await _blk.chat('给我一个数字'))
 
 def test_ai_tool_no_return_content():
     """RETURN 未勾选时不向 AI 返回内容。"""
-    program = BlockyProgram(
+    program = BlocklyProgram(
         code="""
 async def blk_tool_abc():
     _blk.log('done')
@@ -454,6 +454,6 @@ await _blk.reply(await _blk.chat('hi'))
 
 def test_ai_tool_empty_name_raises():
     """工具名称为空时报错。"""
-    program = BlockyProgram(code="_blk.tool('', 'x', lambda: None, True)")
+    program = BlocklyProgram(code="_blk.tool('', 'x', lambda: None, True)")
     result = asyncio.run(run_sim(program, message="x"))
     assert "不能为空" in result["error"]

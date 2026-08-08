@@ -1,10 +1,10 @@
-"""Blocky 程序数据模型的单元测试。"""
+"""Blockly 程序数据模型的单元测试。"""
 
-from blocky.mock_event import MockEvent
-from blocky.program import (
+from blockly.mock_event import MockEvent
+from blockly.program import (
     CONTENT_BLOCKLY,
     CONTENT_PYTHON,
-    BlockyProgram,
+    BlocklyProgram,
 )
 
 
@@ -17,7 +17,7 @@ def test_from_dict_keeps_known_fields():
         "timeout": "10",
         "unknown": {"x": 1},
     }
-    p = BlockyProgram.from_dict(data)
+    p = BlocklyProgram.from_dict(data)
     assert p.id == "abc123"
     assert p.name == "测试程序"
     assert p.models == ["gpt-4o", "qwen-max"]
@@ -26,7 +26,7 @@ def test_from_dict_keeps_known_fields():
 
 
 def test_from_dict_normalizes_invalid_values():
-    p = BlockyProgram.from_dict(
+    p = BlocklyProgram.from_dict(
         {
             "mode": "bad",
             "content_type": "bad",
@@ -44,53 +44,53 @@ def test_from_dict_normalizes_invalid_values():
 
 
 def test_from_dict_accepts_python_content_type():
-    p = BlockyProgram.from_dict({"content_type": CONTENT_PYTHON})
+    p = BlocklyProgram.from_dict({"content_type": CONTENT_PYTHON})
     assert p.content_type == CONTENT_PYTHON
 
 
 def test_from_dict_repairs_bad_trigger():
-    p = BlockyProgram.from_dict({"trigger": None})
+    p = BlocklyProgram.from_dict({"trigger": None})
     assert p.trigger == {"type": "all", "value": ""}
-    p2 = BlockyProgram.from_dict({"trigger": "not-a-dict"})
+    p2 = BlocklyProgram.from_dict({"trigger": "not-a-dict"})
     assert p2.trigger == {"type": "all", "value": ""}
 
 
 def test_matches_all():
-    p = BlockyProgram(trigger={"type": "all"})
+    p = BlocklyProgram(trigger={"type": "all"})
     assert p.matches(MockEvent(message_str="随便什么消息"))
 
 
 def test_matches_contains():
-    p = BlockyProgram(trigger={"type": "contains", "value": "你好"})
+    p = BlocklyProgram(trigger={"type": "contains", "value": "你好"})
     assert p.matches(MockEvent(message_str="朋友你好呀"))
     assert not p.matches(MockEvent(message_str="再见"))
 
 
 def test_matches_prefix():
-    p = BlockyProgram(trigger={"type": "prefix", "value": "/test"})
+    p = BlocklyProgram(trigger={"type": "prefix", "value": "/test"})
     assert p.matches(MockEvent(message_str="  /test 开始执行"))
     assert not p.matches(MockEvent(message_str="xx/test 不匹配"))
 
 
 def test_matches_regex():
-    p = BlockyProgram(trigger={"type": "regex", "value": r"温度\s*\d+"})
+    p = BlocklyProgram(trigger={"type": "regex", "value": r"温度\s*\d+"})
     assert p.matches(MockEvent(message_str="今天温度 28 度"))
     assert not p.matches(MockEvent(message_str="今天没有温度信息"))
 
 
 def test_matches_regex_invalid():
-    p = BlockyProgram(trigger={"type": "regex", "value": "("})
+    p = BlocklyProgram(trigger={"type": "regex", "value": "("})
     assert p.matches(MockEvent(message_str="任意消息")) is False
 
 
 def test_matches_admin_only():
-    p = BlockyProgram(trigger={"type": "admin_only"})
+    p = BlocklyProgram(trigger={"type": "admin_only"})
     assert p.matches(MockEvent(message_str="x", is_admin=True))
     assert not p.matches(MockEvent(message_str="x", is_admin=False))
 
 
 def test_mark_run():
-    p = BlockyProgram()
+    p = BlocklyProgram()
     assert p.run_count == 0
     p.mark_run()
     assert p.run_count == 1
@@ -101,10 +101,10 @@ def test_mark_run():
 
 
 def test_to_dict_roundtrip():
-    p = BlockyProgram(
+    p = BlocklyProgram(
         name="往返",
         models=["qwen-max"],
         trigger={"type": "contains", "value": "你好"},
     )
-    restored = BlockyProgram.from_dict(p.to_dict())
+    restored = BlocklyProgram.from_dict(p.to_dict())
     assert restored.to_dict() == p.to_dict()

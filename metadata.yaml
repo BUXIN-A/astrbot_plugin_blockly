@@ -1,8 +1,8 @@
-name: astrbot_plugin_blocky
-display_name: Blocky 可视化编程
+name: astrbot_plugin_blockly
+display_name: Blockly 可视化编程
 short_desc: 使用 Blockly 积木在线编程，拦截/传递消息，操控 AstrBot。
 desc: |
-  Blocky 可视化编程插件。使用 Blockly 积木（或直接编写 Python）创建"程序"，当机器人收到消息时执行，
+  Blockly 可视化编程插件。使用 Blockly 积木（或直接编写 Python）创建"程序"，当机器人收到消息时执行，
   通过积木决定是"返回消息"（劫持并直接回复）还是"传出消息"（放行交给 AstrBot 继续处理）。
 
   功能特性：
@@ -22,7 +22,7 @@ desc: |
   - 「收纳盒」开关：工具箱底部常驻「隐藏/显示收纳盒」按钮，可随时在画布隐藏删除区域（避免拖拽误删）。
   - 工作区/积木右键「注释」功能：空白处右键新建黄色便签注释，积木上右键添加/删除注释。
   - 支持 WebUI 一键"测试运行"（独立弹窗），无需真实消息即可验证。
-version: v0.5.1
+version: v0.6.0
 author: BUXIN-A
-repo: https://github.com/BUXIN-A/astrbot_plugin_blocky
+repo: https://github.com/BUXIN-A/astrbot_plugin_blockly
 astrbot_version: ">=4.9.2"

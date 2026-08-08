@@ -672,7 +672,7 @@ html[data-theme="dark"] .blocklyTreeRow.selected {
   flex-direction: column;
 }
 
-.blocky-trashcan-toggle {
+.blockly-trashcan-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -683,11 +683,11 @@ html[data-theme="dark"] .blocklyTreeRow.selected {
   border-top: 1px solid var(--border);
 }
 
-.blocky-trashcan-toggle:hover {
+.blockly-trashcan-toggle:hover {
   background-color: var(--bg);
 }
 
-html[data-theme="dark"] .blocky-trashcan-toggle:hover {
+html[data-theme="dark"] .blockly-trashcan-toggle:hover {
   background-color: #1f232b;
 }
 

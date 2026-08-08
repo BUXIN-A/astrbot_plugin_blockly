@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Blocky 可视化编程</title>
+  <title>Blockly 可视化编程</title>
   <link rel="stylesheet" href="style.css" />
 
   <script src="vendor/blockly_compressed.js"></script>
@@ -16,8 +16,8 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="brand">
-          <img class="brand-logo" src="img/icon.png" alt="Blocky" />
-          <span>Blocky</span>
+          <img class="brand-logo" src="img/icon.png" alt="Blockly" />
+          <span>Blockly</span>
         </div>
         <div class="sidebar-header-actions">
           <button class="icon-btn" id="collapseBtn" title="折叠/展开侧栏">
@@ -90,7 +90,7 @@
 
       <div class="editor-area">
         <div id="blocklyDiv"></div>
-        <textarea id="codeEditor" spellcheck="false" placeholder="# 在此直接编写 Python 代码&#10;# 可用：event（消息事件）、ctx（AstrBot 上下文）、_blk（Blocky 操作对象）&#10;# 示例：&#10;await _blk.reply('你好，' + _blk.get_sender_name())"></textarea>
+        <textarea id="codeEditor" spellcheck="false" placeholder="# 在此直接编写 Python 代码&#10;# 可用：event（消息事件）、ctx（AstrBot 上下文）、_blk（Blockly 操作对象）&#10;# 示例：&#10;await _blk.reply('你好，' + _blk.get_sender_name())"></textarea>
       </div>
     </main>
   </div>
@@ -250,51 +250,51 @@
 
   <xml id="toolbox" style="display: none">
     <category name="事件" colour="#5C81A6">
-      <block type="blocky_event"></block>
-      <block type="blocky_event_recall"></block>
-      <block type="blocky_event_member_increase"></block>
-      <block type="blocky_event_poke"></block>
+      <block type="blockly_event"></block>
+      <block type="blockly_event_recall"></block>
+      <block type="blockly_event_member_increase"></block>
+      <block type="blockly_event_poke"></block>
     </category>
     <category name="消息" colour="#5B67A5">
-      <block type="blocky_get_message"></block>
-      <block type="blocky_get_sender_name"></block>
-      <block type="blocky_get_sender_id"></block>
-      <block type="blocky_get_group_id"></block>
-      <block type="blocky_get_session"></block>
-      <block type="blocky_get_platform"></block>
-      <block type="blocky_get_message_type"></block>
-      <block type="blocky_has_image"></block>
-      <block type="blocky_has_face"></block>
-      <block type="blocky_has_at"></block>
-      <block type="blocky_is_admin"></block>
-      <block type="blocky_is_private"></block>
+      <block type="blockly_get_message"></block>
+      <block type="blockly_get_sender_name"></block>
+      <block type="blockly_get_sender_id"></block>
+      <block type="blockly_get_group_id"></block>
+      <block type="blockly_get_session"></block>
+      <block type="blockly_get_platform"></block>
+      <block type="blockly_get_message_type"></block>
+      <block type="blockly_has_image"></block>
+      <block type="blockly_has_face"></block>
+      <block type="blockly_has_at"></block>
+      <block type="blockly_is_admin"></block>
+      <block type="blockly_is_private"></block>
     </category>
     <category name="回复与发送" colour="#5BA58C">
-      <block type="blocky_return_msg"></block>
-      <block type="blocky_reply"></block>
-      <block type="blocky_forward"></block>
-      <block type="blocky_stop"></block>
-      <block type="blocky_send"></block>
+      <block type="blockly_return_msg"></block>
+      <block type="blockly_reply"></block>
+      <block type="blockly_forward"></block>
+      <block type="blockly_stop"></block>
+      <block type="blockly_send"></block>
     </category>
     <category name="AI" colour="#A5745B">
-      <block type="blocky_chat"></block>
-      <block type="blocky_tool"></block>
-      <block type="blocky_tool_return"></block>
+      <block type="blockly_chat"></block>
+      <block type="blockly_tool"></block>
+      <block type="blockly_tool_return"></block>
     </category>
     <category name="HTTP 网络" colour="#A5855B">
-      <block type="blocky_http_get"></block>
-      <block type="blocky_http_get_json"></block>
-      <block type="blocky_http_post"></block>
-      <block type="blocky_http_post_json"></block>
-      <block type="blocky_dict_get"></block>
+      <block type="blockly_http_get"></block>
+      <block type="blockly_http_get_json"></block>
+      <block type="blockly_http_post"></block>
+      <block type="blockly_http_post_json"></block>
+      <block type="blockly_dict_get"></block>
     </category>
     <category name="其他" colour="#A55B5B">
-      <block type="blocky_log"></block>
-      <block type="blocky_sleep"></block>
-      <block type="blocky_get_event_type"></block>
-      <block type="blocky_get_message_id"></block>
-      <block type="blocky_get_target_id"></block>
-      <block type="blocky_get_operator_id"></block>
+      <block type="blockly_log"></block>
+      <block type="blockly_sleep"></block>
+      <block type="blockly_get_event_type"></block>
+      <block type="blockly_get_message_id"></block>
+      <block type="blockly_get_target_id"></block>
+      <block type="blockly_get_operator_id"></block>
     </category>
     <category name="逻辑" colour="#5C81A6">
       <block type="controls_if"></block>
@@ -325,7 +325,7 @@
       <block type="math_random_float"></block>
     </category>
     <category name="文本" colour="#A5745B">
-      <block type="blocky_format_text"></block>
+      <block type="blockly_format_text"></block>
       <block type="text"></block>
       <block type="text_join"></block>
       <block type="text_append"></block>

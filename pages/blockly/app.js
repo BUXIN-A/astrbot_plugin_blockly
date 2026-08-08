@@ -1,4 +1,4 @@
-/* Blocky 可视化编程 WebUI 逻辑 */
+/* Blockly 可视化编程 WebUI 逻辑 */
 /* global Blockly */
 "use strict";
 
@@ -178,10 +178,10 @@ async function apiPost(endpoint, body) {
 
 // 事件入口块类型 -> 程序监听的事件类型
 const EVENT_BLOCK_MAP = {
-  blocky_event: "message",
-  blocky_event_recall: "recall",
-  blocky_event_member_increase: "member_increase",
-  blocky_event_poke: "poke",
+  blockly_event: "message",
+  blockly_event_recall: "recall",
+  blockly_event_member_increase: "member_increase",
+  blockly_event_poke: "poke",
 };
 
 const EVENT_ATTR_OPTIONS = [
@@ -222,7 +222,7 @@ function quotePython(text) {
 function defineBlocks() {
   Blockly.common.defineBlocksWithJsonArray([
     {
-      type: "blocky_event",
+      type: "blockly_event",
       message0: "当接收到消息 %1，消息属性 %2",
       args0: [
         { type: "input_statement", name: "DO" },
@@ -234,7 +234,7 @@ function defineBlocks() {
         "程序入口：收到消息且满足消息属性时执行。属性为「任意」时可用「消息类型」块自行判断。",
     },
     {
-      type: "blocky_event_recall",
+      type: "blockly_event_recall",
       message0: "当撤回消息 %1",
       args0: [{ type: "input_statement", name: "DO" }],
       nextStatement: null,
@@ -243,7 +243,7 @@ function defineBlocks() {
         "程序入口：有人撤回消息时执行。可用「消息 ID/发送者/群号」等块读取被撤回消息信息。",
     },
     {
-      type: "blocky_event_member_increase",
+      type: "blockly_event_member_increase",
       message0: "当新成员加入 %1",
       args0: [{ type: "input_statement", name: "DO" }],
       nextStatement: null,
@@ -251,7 +251,7 @@ function defineBlocks() {
       tooltip: "程序入口：新成员加入群聊时执行。可用「发送者ID/名称」读取新成员。",
     },
     {
-      type: "blocky_event_poke",
+      type: "blockly_event_poke",
       message0: "当被戳一戳 %1",
       args0: [{ type: "input_statement", name: "DO" }],
       nextStatement: null,
@@ -260,63 +260,63 @@ function defineBlocks() {
         "程序入口：群里有人戳一戳时执行。「目标ID」为被戳者，「发送者ID」为发起者。",
     },
     {
-      type: "blocky_get_message",
+      type: "blockly_get_message",
       message0: "消息文本",
       output: "String",
       colour: 160,
       tooltip: "本次收到的消息内容。",
     },
     {
-      type: "blocky_get_sender_name",
+      type: "blockly_get_sender_name",
       message0: "发送者名称",
       output: "String",
       colour: 160,
       tooltip: "发送者的昵称。",
     },
     {
-      type: "blocky_get_sender_id",
+      type: "blockly_get_sender_id",
       message0: "发送者ID",
       output: "String",
       colour: 160,
       tooltip: "发送者的唯一 ID。",
     },
     {
-      type: "blocky_get_group_id",
+      type: "blockly_get_group_id",
       message0: "群号",
       output: "String",
       colour: 160,
       tooltip: "消息所在群聊的 ID（私聊为空）。",
     },
     {
-      type: "blocky_get_session",
+      type: "blockly_get_session",
       message0: "会话标识",
       output: "String",
       colour: 160,
       tooltip: "当前会话的 unified_msg_origin 标识。",
     },
     {
-      type: "blocky_get_platform",
+      type: "blockly_get_platform",
       message0: "平台名称",
       output: "String",
       colour: 160,
       tooltip: "消息来源平台（如 aiocqhttp / telegram）。",
     },
     {
-      type: "blocky_is_admin",
+      type: "blockly_is_admin",
       message0: "发送者是否为管理员",
       output: "Boolean",
       colour: 160,
       tooltip: "发送者是否是机器人管理员。",
     },
     {
-      type: "blocky_is_private",
+      type: "blockly_is_private",
       message0: "是否为私聊",
       output: "Boolean",
       colour: 160,
       tooltip: "消息是否来自私聊。",
     },
     {
-      type: "blocky_get_message_type",
+      type: "blockly_get_message_type",
       message0: "消息类型",
       output: "String",
       colour: 160,
@@ -324,28 +324,28 @@ function defineBlocks() {
         "消息的类型：text（纯文本）/image（图片）/face（表情）/at（@）/voice（语音）/reply（引用回复）等。",
     },
     {
-      type: "blocky_has_image",
+      type: "blockly_has_image",
       message0: "包含图片",
       output: "Boolean",
       colour: 160,
       tooltip: "消息中是否包含图片。",
     },
     {
-      type: "blocky_has_face",
+      type: "blockly_has_face",
       message0: "包含表情",
       output: "Boolean",
       colour: 160,
       tooltip: "消息中是否包含表情。",
     },
     {
-      type: "blocky_has_at",
+      type: "blockly_has_at",
       message0: "包含@",
       output: "Boolean",
       colour: 160,
       tooltip: "消息中是否包含 @某人 或 @全体成员。",
     },
     {
-      type: "blocky_get_event_type",
+      type: "blockly_get_event_type",
       message0: "事件类型",
       output: "String",
       colour: 160,
@@ -353,28 +353,28 @@ function defineBlocks() {
         "当前触发的事件类型：message / recall（撤回）/ member_increase（新成员加入）/ poke（戳一戳）。",
     },
     {
-      type: "blocky_get_message_id",
+      type: "blockly_get_message_id",
       message0: "消息ID",
       output: "String",
       colour: 160,
       tooltip: "本条消息（或被撤回消息）的 ID。",
     },
     {
-      type: "blocky_get_target_id",
+      type: "blockly_get_target_id",
       message0: "目标ID",
       output: "String",
       colour: 160,
       tooltip: "交互事件的目标 ID（如戳一戳中被戳者的 ID）。",
     },
     {
-      type: "blocky_get_operator_id",
+      type: "blockly_get_operator_id",
       message0: "操作者ID",
       output: "String",
       colour: 160,
       tooltip: "事件操作者的 ID（如撤回者、邀请者）。",
     },
     {
-      type: "blocky_reply",
+      type: "blockly_reply",
       message0: "回复 %1",
       args0: [{ type: "input_value", name: "TEXT", check: "String" }],
       previousStatement: null,
@@ -384,7 +384,7 @@ function defineBlocks() {
         "回复一条消息但不劫持事件（其他匹配程序仍会执行；AstrBot 将不再回复）。",
     },
     {
-      type: "blocky_return_msg",
+      type: "blockly_return_msg",
       message0: "返回消息 %1",
       args0: [{ type: "input_value", name: "TEXT", check: "String" }],
       previousStatement: null,
@@ -394,7 +394,7 @@ function defineBlocks() {
         "回复消息并劫持事件（返回消息模式）：阻止 AstrBot 继续处理本次消息。",
     },
     {
-      type: "blocky_forward",
+      type: "blockly_forward",
       message0: "传出消息（交给 AstrBot 继续处理）",
       previousStatement: null,
       nextStatement: null,
@@ -402,7 +402,7 @@ function defineBlocks() {
       tooltip: "放行消息（传出消息模式），交给 AstrBot 继续处理并回复。",
     },
     {
-      type: "blocky_stop",
+      type: "blockly_stop",
       message0: "停止事件传播",
       previousStatement: null,
       nextStatement: null,
@@ -410,7 +410,7 @@ function defineBlocks() {
       tooltip: "立即停止事件传播，AstrBot 不再处理。",
     },
     {
-      type: "blocky_send",
+      type: "blockly_send",
       message0: "向会话 %1 发送 %2",
       args0: [
         { type: "input_value", name: "SESSION", check: "String" },
@@ -422,7 +422,7 @@ function defineBlocks() {
       tooltip: "主动发送消息到指定会话（unified_msg_origin）。",
     },
     {
-      type: "blocky_sleep",
+      type: "blockly_sleep",
       message0: "延时 %1 毫秒",
       args0: [{ type: "field_number", name: "MS", value: 1000, min: 0 }],
       previousStatement: null,
@@ -430,7 +430,7 @@ function defineBlocks() {
       colour: 210,
     },
     {
-      type: "blocky_log",
+      type: "blockly_log",
       message0: "输出日志 %1",
       args0: [{ type: "input_value", name: "TEXT" }],
       previousStatement: null,
@@ -438,7 +438,7 @@ function defineBlocks() {
       colour: 210,
     },
     {
-      type: "blocky_http_get",
+      type: "blockly_http_get",
       message0: "HTTP GET %1 请求头 %2",
       args0: [
         { type: "input_value", name: "URL", check: "String" },
@@ -449,7 +449,7 @@ function defineBlocks() {
       tooltip: "发起 GET 请求，返回 {status, body}。",
     },
     {
-      type: "blocky_http_get_json",
+      type: "blockly_http_get_json",
       message0: "HTTP GET JSON %1 请求头 %2",
       args0: [
         { type: "input_value", name: "URL", check: "String" },
@@ -460,7 +460,7 @@ function defineBlocks() {
       tooltip: "发起 GET 请求并解析 JSON 响应。",
     },
     {
-      type: "blocky_http_post",
+      type: "blockly_http_post",
       message0: "HTTP POST %1 数据 %2 请求头 %3",
       args0: [
         { type: "input_value", name: "URL", check: "String" },
@@ -471,7 +471,7 @@ function defineBlocks() {
       colour: 330,
     },
     {
-      type: "blocky_http_post_json",
+      type: "blockly_http_post_json",
       message0: "HTTP POST JSON %1 数据 %2 请求头 %3",
       args0: [
         { type: "input_value", name: "URL", check: "String" },
@@ -482,7 +482,7 @@ function defineBlocks() {
       colour: 330,
     },
     {
-      type: "blocky_dict_get",
+      type: "blockly_dict_get",
       message0: "取 %1 的键 %2",
       args0: [
         { type: "input_value", name: "DICT" },
@@ -492,7 +492,7 @@ function defineBlocks() {
       colour: 330,
     },
     {
-      type: "blocky_tool",
+      type: "blockly_tool",
       message0: "AI 工具名称 %1",
       args0: [
         {
@@ -522,7 +522,7 @@ function defineBlocks() {
         "注册一个 AI 工具：AI 会根据「使用时机」描述决定何时调用它。块内可放任意积木；勾选「将返回值返回给 AI」后，块内「设置工具返回值」的内容会作为工具结果交给 AI。请放在画布（不与其他积木相连），AI 回答块会自动把本工具提供给 AI。",
     },
     {
-      type: "blocky_tool_return",
+      type: "blockly_tool_return",
       message0: "设置工具返回值 %1",
       args0: [{ type: "input_value", name: "VALUE" }],
       previousStatement: null,
@@ -537,7 +537,7 @@ function defineBlocks() {
 
   // 「AI 回答」块：「指定模型」为可多选的模型列表。
   // 模型列表通过块级 extra state 序列化；点击齿轮按钮在弹窗中编辑。
-  Blockly.Blocks["blocky_chat"] = {
+  Blockly.Blocks["blockly_chat"] = {
     init: function () {
       this.appendValueInput("PROMPT")
         .setCheck("String")
@@ -583,7 +583,7 @@ function defineBlocks() {
 
   // 「格式化文本创建」块：点击齿轮按钮在弹窗中编辑多行模板与标签。
   // 模板中的 {标签} 自动渲染为可连接文本块的输入端口。
-  Blockly.Blocks["blocky_format_text"] = {
+  Blockly.Blocks["blockly_format_text"] = {
     init: function () {
       this.appendDummyInput().appendField("格式化文本创建");
       this.appendDummyInput().appendField(
@@ -655,57 +655,57 @@ function registerPythonGenerator() {
   }
 
   const simpleValueBlocks = {
-    blocky_get_message: "_blk.get_message()",
-    blocky_get_sender_name: "_blk.get_sender_name()",
-    blocky_get_sender_id: "_blk.get_sender_id()",
-    blocky_get_group_id: "_blk.get_group_id()",
-    blocky_get_session: "_blk.get_session()",
-    blocky_get_platform: "_blk.get_platform()",
-    blocky_get_message_type: "_blk.get_message_type()",
-    blocky_has_image: "_blk.has_type('image')",
-    blocky_has_face: "_blk.has_type('face')",
-    blocky_has_at: "_blk.has_type('at')",
-    blocky_get_event_type: "_blk.get_event_type()",
-    blocky_get_message_id: "_blk.get_message_id()",
-    blocky_get_target_id: "_blk.get_target_id()",
-    blocky_get_operator_id: "_blk.get_operator_id()",
-    blocky_is_admin: "_blk.is_admin()",
-    blocky_is_private: "_blk.is_private()",
+    blockly_get_message: "_blk.get_message()",
+    blockly_get_sender_name: "_blk.get_sender_name()",
+    blockly_get_sender_id: "_blk.get_sender_id()",
+    blockly_get_group_id: "_blk.get_group_id()",
+    blockly_get_session: "_blk.get_session()",
+    blockly_get_platform: "_blk.get_platform()",
+    blockly_get_message_type: "_blk.get_message_type()",
+    blockly_has_image: "_blk.has_type('image')",
+    blockly_has_face: "_blk.has_type('face')",
+    blockly_has_at: "_blk.has_type('at')",
+    blockly_get_event_type: "_blk.get_event_type()",
+    blockly_get_message_id: "_blk.get_message_id()",
+    blockly_get_target_id: "_blk.get_target_id()",
+    blockly_get_operator_id: "_blk.get_operator_id()",
+    blockly_is_admin: "_blk.is_admin()",
+    blockly_is_private: "_blk.is_private()",
   };
   for (const [type, expr] of Object.entries(simpleValueBlocks)) {
     py.forBlock[type] = () => [expr, py.ORDER_FUNCTION_CALL];
   }
 
-  py.forBlock["blocky_reply"] = function (block) {
+  py.forBlock["blockly_reply"] = function (block) {
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
     return `await _blk.reply(${text})\n`;
   };
 
-  py.forBlock["blocky_return_msg"] = function (block) {
+  py.forBlock["blockly_return_msg"] = function (block) {
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
     return `await _blk.return_msg(${text})\n`;
   };
 
-  py.forBlock["blocky_forward"] = () => "_blk.forward()\n";
-  py.forBlock["blocky_stop"] = () => "_blk.stop()\n";
+  py.forBlock["blockly_forward"] = () => "_blk.forward()\n";
+  py.forBlock["blockly_stop"] = () => "_blk.stop()\n";
 
-  py.forBlock["blocky_send"] = function (block) {
+  py.forBlock["blockly_send"] = function (block) {
     const session = py.valueToCode(block, "SESSION", py.ORDER_NONE) || "''";
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
     return `await _blk.send(${session}, ${text})\n`;
   };
 
-  py.forBlock["blocky_sleep"] = function (block) {
+  py.forBlock["blockly_sleep"] = function (block) {
     const ms = block.getFieldValue("MS") || "0";
     return `await _blk.sleep(${ms})\n`;
   };
 
-  py.forBlock["blocky_log"] = function (block) {
+  py.forBlock["blockly_log"] = function (block) {
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
     return `_blk.log(${text})\n`;
   };
 
-  py.forBlock["blocky_chat"] = function (block) {
+  py.forBlock["blockly_chat"] = function (block) {
     const prompt = py.valueToCode(block, "PROMPT", py.ORDER_NONE) || "''";
     const models = (block.models_ || []).join(",");
     const expr = models
@@ -714,7 +714,7 @@ function registerPythonGenerator() {
     return [expr, py.ORDER_FUNCTION_CALL];
   };
 
-  py.forBlock["blocky_format_text"] = function (block) {
+  py.forBlock["blockly_format_text"] = function (block) {
     const template = block.template_ || "";
     const tags = extractTemplateTags(template);
     if (!tags.length) {
@@ -740,13 +740,13 @@ function registerPythonGenerator() {
     return ["(" + parts.join(" + ") + ")", py.ORDER_FUNCTION_CALL];
   };
 
-  py.forBlock["blocky_http_get"] = function (block) {
+  py.forBlock["blockly_http_get"] = function (block) {
     const url = py.valueToCode(block, "URL", py.ORDER_NONE) || "''";
     const headers = block.getFieldValue("HEADERS") || "{}";
     return [`await _blk.http_get(${url}, ${headers})`, py.ORDER_FUNCTION_CALL];
   };
 
-  py.forBlock["blocky_http_get_json"] = function (block) {
+  py.forBlock["blockly_http_get_json"] = function (block) {
     const url = py.valueToCode(block, "URL", py.ORDER_NONE) || "''";
     const headers = block.getFieldValue("HEADERS") || "{}";
     return [
@@ -755,7 +755,7 @@ function registerPythonGenerator() {
     ];
   };
 
-  py.forBlock["blocky_http_post"] = function (block) {
+  py.forBlock["blockly_http_post"] = function (block) {
     const url = py.valueToCode(block, "URL", py.ORDER_NONE) || "''";
     const data = block.getFieldValue("DATA") || "{}";
     const headers = block.getFieldValue("HEADERS") || "{}";
@@ -765,7 +765,7 @@ function registerPythonGenerator() {
     ];
   };
 
-  py.forBlock["blocky_http_post_json"] = function (block) {
+  py.forBlock["blockly_http_post_json"] = function (block) {
     const url = py.valueToCode(block, "URL", py.ORDER_NONE) || "''";
     const data = block.getFieldValue("DATA") || "{}";
     const headers = block.getFieldValue("HEADERS") || "{}";
@@ -775,7 +775,7 @@ function registerPythonGenerator() {
     ];
   };
 
-  py.forBlock["blocky_dict_get"] = function (block) {
+  py.forBlock["blockly_dict_get"] = function (block) {
     const dictExpr = py.valueToCode(block, "DICT", py.ORDER_NONE) || "{}";
     const key = py.valueToCode(block, "KEY", py.ORDER_NONE) || "''";
     return [`_blk.dict_get(${dictExpr}, ${key})`, py.ORDER_FUNCTION_CALL];
@@ -783,7 +783,7 @@ function registerPythonGenerator() {
 
   // 「AI 工具」块：把函数体包成独立 async def，再调用 _blk.tool 注册。
   // 块与块之间用唯一 id 命名函数，避免重名；name/desc 用引号安全转义。
-  py.forBlock["blocky_tool"] = function (block) {
+  py.forBlock["blockly_tool"] = function (block) {
     const name = block.getFieldValue("NAME") || "";
     const desc = block.getFieldValue("DESC") || "";
     const returnFlag = block.getFieldValue("RETURN") === "TRUE";
@@ -810,14 +810,14 @@ function registerPythonGenerator() {
     );
   };
 
-  py.forBlock["blocky_tool_return"] = function (block) {
+  py.forBlock["blockly_tool_return"] = function (block) {
     const val = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
     return "_blk.tool_return(" + val + ")\n";
   };
 }
 
 /* ---------- 收纳盒（trashcan）常驻开关 ---------- */
-const TRASHCAN_KEY = "blocky_trashcan";
+const TRASHCAN_KEY = "blockly_trashcan";
 let trashcanToggleBtn = null; // 工具箱底部追加的「收纳盒开关」label 容器
 let trashcanToggleCheck = null; // 内部的 checkbox
 let trashcanToggleImg = null; // 内部的勾选图标
@@ -911,9 +911,9 @@ function setTrashcanVisible(on) {
 function addTrashcanToggle() {
   if (!workspace) return;
   const container = document.querySelector(".blocklyToolbox");
-  if (!container || container.querySelector(".blocky-trashcan-toggle")) return;
+  if (!container || container.querySelector(".blockly-trashcan-toggle")) return;
   const label = document.createElement("label");
-  label.className = "blocky-trashcan-toggle";
+  label.className = "blockly-trashcan-toggle";
   label.title = "常驻模式：开启后收纳盒与工具箱弹出面板不会因点击工作区而自动关闭";
   // 鼠标切换时只阻止冒泡，不处理分类选中；松开鼠标后延迟处理
   label.addEventListener("mousedown", (e) => {
@@ -1016,7 +1016,7 @@ function initWorkspace(isDark) {
 
 function defaultWorkspaceState() {
   return {
-    blocks: { languageVersion: 0, blocks: [{ type: "blocky_event" }] },
+    blocks: { languageVersion: 0, blocks: [{ type: "blockly_event" }] },
   };
 }
 
@@ -1215,7 +1215,7 @@ function generateCode() {
     // 是合法用法——它会生成工具定义并注册到全局，供事件分支中的「AI 回答」块使用。
     const blocks = workspace.getTopBlocks(true);
     const entries = blocks.filter((b) => EVENT_BLOCK_MAP[b.type]);
-    const toolBlocks = blocks.filter((b) => b.type === "blocky_tool");
+    const toolBlocks = blocks.filter((b) => b.type === "blockly_tool");
     Blockly.Python.init(workspace);
     const parts = [];
     for (const t of toolBlocks) {
@@ -1234,7 +1234,7 @@ function generateCode() {
     }
     return parts.join("\n");
   } catch (err) {
-    console.error("[blocky] 积木代码生成失败:", err);
+    console.error("[blockly] 积木代码生成失败:", err);
     return $("codeEditor").value || "";
   }
 }
@@ -1259,7 +1259,7 @@ function collectForm() {
       .filter((b) => EVENT_BLOCK_MAP[b.type]);
     if (entries.length) {
       eventType = entries.map((b) => EVENT_BLOCK_MAP[b.type]).join(",");
-      const msgEntry = entries.find((b) => b.type === "blocky_event");
+      const msgEntry = entries.find((b) => b.type === "blockly_event");
       eventAttr = msgEntry ? msgEntry.getFieldValue("ATTR") || "any" : "any";
     }
   } else {
@@ -1486,7 +1486,7 @@ function exportAll() {
     showToast("暂无程序可导出");
     return;
   }
-  bridge.download("export", {}, "blocky_programs.json").catch((err) => {
+  bridge.download("export", {}, "blockly_programs.json").catch((err) => {
     showToast(err.message || "导出失败", true);
   });
 }
@@ -1494,7 +1494,7 @@ function exportAll() {
 function exportCurrent() {
   if (!currentId) return;
   bridge
-    .download("export/" + currentId, {}, "blocky_program.json")
+    .download("export/" + currentId, {}, "blockly_program.json")
     .catch((err) => showToast(err.message || "导出失败", true));
 }
 
@@ -1591,7 +1591,7 @@ async function importFromFile(file) {
     await importData(data);
   } catch (err) {
     showToast(
-      err.message || "导入失败，请确认文件为 Blocky 导出的 JSON",
+      err.message || "导入失败，请确认文件为 Blockly 导出的 JSON",
       true,
     );
   }
@@ -1737,7 +1737,7 @@ function bindModelModal() {
 }
 
 /* ---------- AI 块「指定模型」弹窗（独立于程序级可用模型） ---------- */
-let blockModelTarget = null; // 当前正在编辑模型的 blocky_chat 块
+let blockModelTarget = null; // 当前正在编辑模型的 blockly_chat 块
 let blockModels = [];
 let blockModelBackup = [];
 
@@ -1852,7 +1852,7 @@ function bindBlockModelModal() {
 }
 
 /* ---------- 格式化文本创建弹窗 ---------- */
-let fmtBlockTarget = null; // 当前正在编辑的 blocky_format_text 块
+let fmtBlockTarget = null; // 当前正在编辑的 blockly_format_text 块
 let fmtTags = [];
 
 function openFormatTextDialog(block) {
@@ -2026,7 +2026,7 @@ function bindEvents() {
 (async function init() {
   try {
     const ctx = await bridge.ready();
-    document.title = ctx.pageTitle || "Blocky 可视化编程";
+    document.title = ctx.pageTitle || "Blockly 可视化编程";
     defineBlocks();
     registerPythonGenerator();
     initWorkspace(ctx.isDark);

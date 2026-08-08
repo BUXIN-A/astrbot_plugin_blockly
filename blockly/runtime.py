@@ -1,4 +1,4 @@
-"""Blocky 受限执行引擎。
+"""Blockly 受限执行引擎。
 
 积木（或手写）生成的 Python 代码会被包装成异步函数，在受限的命名空间内执行：
 - 仅暴露白名单内置函数（不含 __import__/open/eval/exec 等）；
@@ -21,14 +21,14 @@ import time
 from functools import lru_cache
 from typing import Any, ClassVar
 
-from .program import CONTENT_BLOCKLY, BlockyProgram
+from .program import CONTENT_BLOCKLY, BlocklyProgram
 
 try:
     # AstrBot 只对「astrbot」命名空间的 logger 配置了 handler/界面输出，
     # 独立 logger 的 INFO 会被丢弃，因此优先复用 AstrBot 的主 logger。
     from astrbot.core import logger
 except ImportError:  # 测试环境（未安装 AstrBot）
-    logger = logging.getLogger("astrbot_plugin_blocky")
+    logger = logging.getLogger("astrbot_plugin_blockly")
 
 try:
     # 「AI 工具」积木使用 AstrBot 的 FunctionTool/ToolSet 接入函数调用。
@@ -215,7 +215,7 @@ async def _http_request(
             return {"status": resp.status_code, "body": resp.text}
 
 
-class BlockyRuntime:
+class BlocklyRuntime:
     """积木生成代码通过 ``_blk`` 调用本对象，屏蔽底层 AstrBot 细节。"""
 
     # 段类型（ComponentType.name 小写）到事件属性（EVENT_ATTRS）的映射
@@ -228,7 +228,7 @@ class BlockyRuntime:
         "record": "voice",
     }
 
-    def __init__(self, context, event, program: BlockyProgram) -> None:
+    def __init__(self, context, event, program: BlocklyProgram) -> None:
         self._ctx = context
         self._event = event
         self._program = program
@@ -524,7 +524,7 @@ class BlockyRuntime:
             return ""
 
     def log(self, text: Any) -> None:
-        logger.info("[blocky:%s] %s", self._program.name, text)
+        logger.info("[blockly:%s] %s", self._program.name, text)
 
     async def sleep(self, ms: Any) -> None:
         await asyncio.sleep(max(0.0, float(ms) / 1000.0))
@@ -582,22 +582,22 @@ def wrap_code(code: str, func_name: str = "_blk_run") -> str:
 def _compile_safe(source: str) -> Any:
     """AST 静态检查 + 编译。代码相同的结果会被缓存，避免每条消息重复编译。"""
     _assert_safe_source(source)
-    return compile(source, "<blocky>", "exec")
+    return compile(source, "<blockly>", "exec")
 
 
-def _build_namespace(context, event, program: BlockyProgram) -> dict:
+def _build_namespace(context, event, program: BlocklyProgram) -> dict:
     return {
         "__builtins__": dict(SAFE_BUILTINS),
         "math": math,
         "random": random,
         "event": event,
         "ctx": context,
-        "_blk": BlockyRuntime(context, event, program),
+        "_blk": BlocklyRuntime(context, event, program),
     }
 
 
 async def run_program(
-    program: BlockyProgram,
+    program: BlocklyProgram,
     context,
     event,
     timeout: float = 30.0,
@@ -637,7 +637,7 @@ async def run_program(
 
 
 async def simulate_program(
-    program: BlockyProgram,
+    program: BlocklyProgram,
     message: str = "",
     timeout: float = 30.0,
     chat_responses: dict | None = None,

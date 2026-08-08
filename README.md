@@ -1,6 +1,6 @@
-# astrbot_plugin_blocky
+# astrbot_plugin_blockly
 
-> Blocky 可视化编程 —— 让 AstrBot 在线编程、操控 AstrBot。
+> Blockly 可视化编程 —— 让 AstrBot 在线编程、操控 AstrBot。
 
 使用 [Blockly](https://blockly.com) 积木（或直接编写 Python）创建"程序"，当机器人收到消息时执行。
 **传出消息还是返回消息由积木决定**：
@@ -22,13 +22,13 @@
 
 ## 安装
 
-把 `astrbot_plugin_blocky` 目录放入 AstrBot 的 `data/plugins/` 下，然后在 WebUI 插件管理中启用/重载插件。
+把 `astrbot_plugin_blockly` 目录放入 AstrBot 的 `data/plugins/` 下，然后在 WebUI 插件管理中启用/重载插件。
 
 ## 使用
 
 ### WebUI（推荐）
 
-插件启用后，在插件详情页打开 **Blocky 可视化编程** 页面：
+插件启用后，在插件详情页打开 **Blockly 可视化编程** 页面：
 
 1. 点击"新建"，填写名称并选择编辑方式（积木模式 / 代码模式，选定后不可切换）。
 2. 在对应编辑器中编写逻辑（积木拖拽，或直接写 Python）。
@@ -40,13 +40,13 @@
 
 | 指令 | 说明 |
 | --- | --- |
-| `/blocky` | 帮助 |
-| `/blocky list` | 列出所有程序 |
-| `/blocky on <id>` | 开启程序 |
-| `/blocky off <id>` | 关闭程序 |
-| `/blocky new <名称>` | 新建程序 |
-| `/blocky delete <id>` | 删除程序 |
-| `/blocky reload` | 从磁盘重新加载程序 |
+| `/blockly` | 帮助 |
+| `/blockly list` | 列出所有程序 |
+| `/blockly on <id>` | 开启程序 |
+| `/blockly off <id>` | 关闭程序 |
+| `/blockly new <名称>` | 新建程序 |
+| `/blockly delete <id>` | 删除程序 |
+| `/blockly reload` | 从磁盘重新加载程序 |
 
 ## 积木说明（AstrBot 专属）
 

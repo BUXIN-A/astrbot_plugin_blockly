@@ -1,6 +1,6 @@
-"""Blocky 程序文件管理器。
+"""Blockly 程序文件管理器。
 
-程序以 JSON 文件形式持久化在 ``data/plugin_data/astrbot_plugin_blocky/programs/<id>.json``。
+程序以 JSON 文件形式持久化在 ``data/plugin_data/astrbot_plugin_blockly/programs/<id>.json``。
 """
 
 from __future__ import annotations
@@ -11,17 +11,17 @@ import logging
 from collections.abc import Iterable
 from pathlib import Path
 
-from .program import BlockyProgram, new_id
+from .program import BlocklyProgram, new_id
 
-logger = logging.getLogger("astrbot_plugin_blocky")
+logger = logging.getLogger("astrbot_plugin_blockly")
 
 
-class BlockyManager:
+class BlocklyManager:
     def __init__(self, data_dir: str | Path) -> None:
         self.programs_dir = Path(data_dir) / "programs"
         self.programs_dir.mkdir(parents=True, exist_ok=True)
-        self._programs: dict[str, BlockyProgram] = {}
-        self._enabled: list[BlockyProgram] | None = None  # 已启用程序缓存
+        self._programs: dict[str, BlocklyProgram] = {}
+        self._enabled: list[BlocklyProgram] | None = None  # 已启用程序缓存
         self._lock = asyncio.Lock()
         self.load()
 
@@ -33,7 +33,7 @@ class BlockyManager:
         for path in sorted(self.programs_dir.glob("*.json")):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                program = BlockyProgram.from_dict(data)
+                program = BlocklyProgram.from_dict(data)
                 self._programs[program.id] = program
             except Exception as exc:  # noqa: BLE001
                 logger.warning("跳过损坏的程序文件 %s: %s", path, exc)
@@ -45,7 +45,7 @@ class BlockyManager:
     def _path(self, pid: str) -> Path:
         return self.programs_dir / f"{pid}.json"
 
-    async def _save(self, program: BlockyProgram) -> None:
+    async def _save(self, program: BlocklyProgram) -> None:
         path = self._path(program.id)
         tmp = path.with_suffix(".json.tmp")
         tmp.write_text(
@@ -55,15 +55,15 @@ class BlockyManager:
         tmp.replace(path)
 
     # ---------- 查询 ----------
-    def get(self, pid: str) -> BlockyProgram | None:
+    def get(self, pid: str) -> BlocklyProgram | None:
         return self._programs.get(pid)
 
-    def list_programs(self) -> list[BlockyProgram]:
+    def list_programs(self) -> list[BlocklyProgram]:
         programs = list(self._programs.values())
         programs.sort(key=lambda p: (-p.priority, p.created_at))
         return programs
 
-    def enabled_programs(self) -> list[BlockyProgram]:
+    def enabled_programs(self) -> list[BlocklyProgram]:
         """按优先级排序返回已启用程序；未变更时复用缓存以减少排序开销。"""
         if self._enabled is None:
             programs = [p for p in self._programs.values() if p.enabled]
@@ -91,9 +91,9 @@ class BlockyManager:
         content_type: str = "blockly",
         workspace: str = "",
         code: str = "",
-    ) -> BlockyProgram:
+    ) -> BlocklyProgram:
         async with self._lock:
-            program = BlockyProgram(
+            program = BlocklyProgram(
                 name=self.unique_name(name),
                 content_type=content_type,
                 workspace=workspace,
@@ -104,7 +104,7 @@ class BlockyManager:
             await self._save(program)
             return program
 
-    async def update(self, program: BlockyProgram) -> None:
+    async def update(self, program: BlocklyProgram) -> None:
         async with self._lock:
             self._programs[program.id] = program
             self._invalidate_cache()
@@ -121,12 +121,12 @@ class BlockyManager:
                 path.unlink()
             return True
 
-    async def duplicate(self, pid: str) -> BlockyProgram | None:
+    async def duplicate(self, pid: str) -> BlocklyProgram | None:
         async with self._lock:
             src = self._programs.get(pid)
             if src is None:
                 return None
-            clone = BlockyProgram.from_dict(src.to_dict())
+            clone = BlocklyProgram.from_dict(src.to_dict())
             clone.id = new_id()
             clone.name = f"{src.name} (副本)"
             clone.enabled = False

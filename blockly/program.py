@@ -1,4 +1,4 @@
-"""Blocky 程序数据模型。"""
+"""Blockly 程序数据模型。"""
 
 from __future__ import annotations
 
@@ -23,10 +23,10 @@ EVENT_ATTRS = ("any", "text", "image", "face", "at", "voice", "reply")
 
 # Blockly 事件入口积木类型 -> 事件类型
 EVENT_BLOCK_TYPES = {
-    "blocky_event": "message",
-    "blocky_event_recall": "recall",
-    "blocky_event_member_increase": "member_increase",
-    "blocky_event_poke": "poke",
+    "blockly_event": "message",
+    "blockly_event_recall": "recall",
+    "blockly_event_member_increase": "member_increase",
+    "blockly_event_poke": "poke",
 }
 
 
@@ -86,8 +86,8 @@ def workspace_event_types(workspace_json: str) -> list[str]:
 
 
 @dataclass
-class BlockyProgram:
-    """一个 Blocky 程序（对应磁盘上的一个文件）。"""
+class BlocklyProgram:
+    """一个 Blockly 程序（对应磁盘上的一个文件）。"""
 
     id: str = field(default_factory=new_id)
     name: str = "未命名程序"
@@ -132,7 +132,7 @@ class BlockyProgram:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict) -> BlockyProgram:
+    def from_dict(cls, data: dict) -> BlocklyProgram:
         known = {f for f in cls.__dataclass_fields__}
         data = {k: v for k, v in (data or {}).items() if k in known}
         if "content_type" in data and data["content_type"] not in (

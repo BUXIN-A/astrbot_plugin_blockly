@@ -2,6 +2,14 @@
 
 本插件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循语义化版本。
 
+## [v0.6.0] - 2026-08-09
+
+### 变更
+- **项目全面重命名为 Blockly**：插件名、包名、仓库名由 `blocky` 修正为 `blockly`（`astrbot_plugin_blocky` → `astrbot_plugin_blockly`）。
+- **积木类型标识前缀由 `blocky_` 改为 `blockly_`**：`blockly_event`、`blockly_reply`、`blockly_get_message` 等。注意：此前的旧程序文件中的积木类型无法被新版本识别，需在 WebUI 编辑器中重新创建。
+- **聊天指令 `/blocky` 改为 `/blockly`**（别名 `blk` 保持不变）。
+- **仓库地址变更为** `https://github.com/BUXIN-A/astrbot_plugin_blockly`。
+
 ## [v0.5.1] - 2026-08-08
 
 ### 修复
@@ -16,7 +24,7 @@
 - **右键菜单「注释」功能**：工作区空白处右键可「新建注释」（黄色便签、可直接编辑），积木上右键可「添加/删除注释」。Blockly 默认只注册积木上的注释菜单项，工作区空白处的「新建注释」漏掉注册，本版本显式补上。
 
 ### 修复
-- **插件页在沙箱 iframe 中 localStorage 不可用报错**：AstrBot 插件页的 iframe 的 `sandbox` 属性可能缺少 `allow-same-origin`，导致页面初始化时访问 `localStorage` 直接抛出异常、Blocky 编辑器无法加载。已将所有 `localStorage` 调用包裹在 `try/catch` 中，沙箱环境下静默降级（收纳盒默认开启常驻状态）。
+- **插件页在沙箱 iframe 中 localStorage 不可用报错**：AstrBot 插件页的 iframe 的 `sandbox` 属性可能缺少 `allow-same-origin`，导致页面初始化时访问 `localStorage` 直接抛出异常、Blockly 编辑器无法加载。已将所有 `localStorage` 调用包裹在 `try/catch` 中，沙箱环境下静默降级（收纳盒默认开启常驻状态）。
 - **关闭常驻后收纳盒图标被隐藏**：常驻开关仅控制「粘性」行为，不应影响收纳盒图标的显隐。移除 `svgGroup.style.display` 设置，收纳盒始终可见，开关只控制 lid/flyout 是否自动关闭。
 
 ### 其他
@@ -25,7 +33,7 @@
 ## [v0.4.2] - 2026-08-08
 
 ### 新增
-- **「AI 回答」块「指定模型」改为模型列表**：块上显示当前已选模型数量，点击齿轮按钮在弹窗内添加/排序/删除多个 `provider:model`（顺序即优先级、失败自动切换下一个）。进入 Blocky 页面时自动获取后端可用模型列表供选择；不指定时沿用程序「可用模型」白名单。模型列表随积木序列化保存。
+- **「AI 回答」块「指定模型」改为模型列表**：块上显示当前已选模型数量，点击齿轮按钮在弹窗内添加/排序/删除多个 `provider:model`（顺序即优先级、失败自动切换下一个）。进入 Blockly 页面时自动获取后端可用模型列表供选择；不指定时沿用程序「可用模型」白名单。模型列表随积木序列化保存。
 - **「格式化文本创建」块**（文本分类）：点击齿轮按钮打开格式化弹窗——左侧多行编辑区、右侧标签区（可「创建标签」）；点击标签在编辑器光标处插入 `{标签}`。退出弹窗后，模板中的每个 `{标签}` 自动渲染为可连接文本块的输入端口，运行时把端口内容替换进对应标签位置。
 
 ## [v0.4.1] - 2026-08-08
@@ -63,7 +71,7 @@
 
 ### 优化
 - 程序代码执行前 AST 检查 + 编译改用 `functools.lru_cache` 缓存结果，不同程序共用编译结果，减少每事件重复编译开销。
-- `BlockyManager.enabled_programs()` 结果缓存，程序未变更时复用排序结果，降低每条消息的处理开销。
+- `BlocklyManager.enabled_programs()` 结果缓存，程序未变更时复用排序结果，降低每条消息的处理开销。
 
 ## [v0.3.9] - 2026-08-08
 
@@ -76,7 +84,7 @@
 - 一批导入多个同名条目时，`rename` 策略会结合已分配名称去重（如 `test (2)`、`test (3)`），不再出现同批重名互相覆盖。
 
 ### 其他
-- `BlockyManager.unique_name` 新增可选参数 `used_names`，使导入批内重命名与磁盘已有名称一起参与去重。
+- `BlocklyManager.unique_name` 新增可选参数 `used_names`，使导入批内重命名与磁盘已有名称一起参与去重。
 
 ## [v0.3.8] - 2026-08-08
 
@@ -120,7 +128,7 @@
 ## [v0.3.1] - 2026-08-08
 
 ### 修复
-- **Blocky 插件页图标无法加载 + 控制台报错**：AstrBot 插件页只会给 HTML/CSS/import 中的静态资源引用追加 `asset_token`，JS 运行时创建的 `<img>` 与 Blockly 内部的媒体请求（`vendor/media/*.mp3`、`sprites.svg` 等）不携带 token 导致 401（声音资源还触发跨域 `Failed to fetch`）。处理方式：
+- **Blockly 插件页图标无法加载 + 控制台报错**：AstrBot 插件页只会给 HTML/CSS/import 中的静态资源引用追加 `asset_token`，JS 运行时创建的 `<img>` 与 Blockly 内部的媒体请求（`vendor/media/*.mp3`、`sprites.svg` 等）不携带 token 导致 401（声音资源还触发跨域 `Failed to fetch`）。处理方式：
   - 侧栏复制/删除/启用开关、模型白名单移除等运行时创建的图标改用内嵌 data URI，不再依赖图片文件请求。
   - Blockly 关闭 `sounds`（消除 `fetch` 报错）、关闭 `trashcan` 与缩放控件（不再请求 `sprites.svg`），缩放滚轮功能保留。
 
@@ -168,4 +176,4 @@
 - 多程序管理：新建、复制、删除、导入、导出、开启/关闭、优先级、触发条件。
 - 受限执行沙箱：白名单 builtins + 独立超时；提供 `event`/`ctx`/`_blk` 对象。
 - AstrBot 专属积木：返回/回复/传出/停止事件、主动发送、调用 AI、HTTP 请求、日志、延时等。
-- 独立 WebUI 编辑器（积木模式 + 代码模式）与 `/blocky` 聊天指令。
+- 独立 WebUI 编辑器（积木模式 + 代码模式）与 `/blockly` 聊天指令。
