@@ -2,6 +2,13 @@
 
 本插件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循语义化版本。
 
+## [v0.5.1] - 2026-08-08
+
+### 修复
+- **收纳盒常驻开关互动紊乱**：修复点击 toggle 时事件冒泡到工具箱触发 `clearSelection` 导致状态错乱的问题。改用 `e.stopPropagation()` 阻止冒泡，`change` 事件监听取代 `requestAnimationFrame` 延迟回调，确保状态切换即时准确。
+- **状态切换检测逻辑错误**：`prev` 读取的 checkbox 状态已被浏览器先于 click 事件处理程序切换，导致 `prev === on` 恒成立，`selectFirstToolboxCategory` 从未执行。改为在更新 localStorage 之前读取 `trashcanVisible()` 获取旧值，正确识别 OFF→ON 切换。
+- **关闭常驻时工具箱弹出面板未关闭**：开启→关闭切换时立即调用 `clearSelection()` 清除分类选中并关闭 flyout，恢复默认行为。
+
 ## [v0.5.0] - 2026-08-08
 
 ### 新增

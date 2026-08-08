@@ -881,16 +881,22 @@ function selectFirstToolboxCategory() {
 }
 
 function setTrashcanVisible(on) {
+  const wasOn = trashcanVisible(); // 读取 localStorage 旧值（尚未更新）
   try {
     localStorage.setItem(TRASHCAN_KEY, on ? "on" : "off");
   } catch {
     // 插件页运行在沙箱 iframe 中且无 allow-same-origin，localStorage 不可用，静默降级
   }
-  const prev = trashcanToggleCheck ? trashcanToggleCheck.checked : null;
   patchSticky(on);
-  if (on && prev === false) {
+  if (on && !wasOn) {
     // 从关闭切换为开启：默认选中第一个分类（事件）并展开其 flyout
     selectFirstToolboxCategory();
+  } else if (!on && wasOn) {
+    // 从开启切换为关闭：清除分类选中，关闭 flyout（恢复默认行为）
+    const tb = workspace && workspace.toolbox;
+    if (tb && typeof tb.clearSelection === "function") {
+      tb.clearSelection();
+    }
   }
   if (trashcanToggleCheck) {
     trashcanToggleCheck.checked = on;
@@ -907,6 +913,10 @@ function addTrashcanToggle() {
   const label = document.createElement("label");
   label.className = "blocky-trashcan-toggle";
   label.title = "常驻模式：开启后收纳盒与工具箱弹出面板不会因点击工作区而自动关闭";
+  label.addEventListener("click", (e) => {
+    // 阻止点击事件冒泡到工具箱触发 clearSelection，避免干扰状态切换
+    e.stopPropagation();
+  });
   const labelSpan = document.createElement("span");
   labelSpan.className = "trashcan-label";
   labelSpan.textContent = "收纳盒常驻";
@@ -916,6 +926,9 @@ function addTrashcanToggle() {
   const input = document.createElement("input");
   input.type = "checkbox";
   input.checked = trashcanVisible();
+  input.addEventListener("change", () => {
+    setTrashcanVisible(input.checked);
+  });
   const img = document.createElement("img");
   img.className = "toggle-check";
   img.src = input.checked ? IMG_CHECK_OK : IMG_CHECK;
@@ -924,11 +937,6 @@ function addTrashcanToggle() {
   toggle.appendChild(img);
   label.appendChild(labelSpan);
   label.appendChild(toggle);
-  label.addEventListener("click", (e) => {
-    requestAnimationFrame(() => {
-      setTrashcanVisible(input.checked);
-    });
-  });
   container.appendChild(label);
   trashcanToggleBtn = label;
   trashcanToggleCheck = input;
