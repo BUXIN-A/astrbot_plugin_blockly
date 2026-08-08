@@ -26,6 +26,27 @@ class _MockResult:
         return self._stopped
 
 
+@dataclass
+class _MockSegmentType:
+    name: str
+
+
+@dataclass
+class _MockSegment:
+    type: _MockSegmentType
+
+
+def _build_segments(message_type: str) -> list:
+    """根据模拟的消息类型构造消息段列表。
+
+    ``text`` 生成纯文本段；其余类型生成一个对应类型的段（如 image/face/voice）。
+    """
+    name = str(message_type or "text").strip().lower() or "text"
+    if name == "text":
+        return [_MockSegment(_MockSegmentType("plain"))]
+    return [_MockSegment(_MockSegmentType(name))]
+
+
 class MockEvent:
     """模拟的 AstrMessageEvent。"""
 
@@ -38,6 +59,7 @@ class MockEvent:
         platform: str = "mock",
         is_admin: bool = False,
         is_private: bool = False,
+        message_type: str = "text",
     ) -> None:
         self.message_str = message_str
         self._sender_name = sender_name
@@ -46,10 +68,14 @@ class MockEvent:
         self._platform = platform
         self._is_admin = is_admin
         self._is_private = is_private
+        self._segments = _build_segments(message_type)
         self.unified_msg_origin = f"{platform}:frien_m_message:mock_session"
         self._result = None
         self._force_stopped = False
         self.sent_messages: list[str] = []
+
+    def get_messages(self) -> list:
+        return self._segments
 
     async def send(self, chain) -> None:
         text = _chain_to_text(chain)
@@ -110,6 +136,7 @@ class MockContext:
     ) -> None:
         self.sent: list[tuple[str, str]] = []
         self.chat_responses: dict[str, str] = {}
+        self.chat_failure_models: set[str] = set()  # 模拟指定模型调用失败的 key
         self.current_model = current_model
         self.current_provider = current_provider
 
@@ -119,9 +146,17 @@ class MockContext:
     async def get_current_chat_provider_id(self, umo=None) -> str:
         return self.current_provider
 
-    async def llm_generate(self, chat_provider_id=None, prompt="", **kwargs):
+    async def llm_generate(self, chat_provider_id=None, prompt="", model=None, **kwargs):
         class _Resp:
             completion_text = ""
+
+        key = (
+            f"{chat_provider_id}:{model}"
+            if model
+            else str(chat_provider_id or "")
+        )
+        if key in self.chat_failure_models:
+            raise RuntimeError(f"模型 {model or chat_provider_id} 调用失败")
 
         if prompt in self.chat_responses:
             _Resp.completion_text = self.chat_responses[prompt]

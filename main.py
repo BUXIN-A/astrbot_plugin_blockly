@@ -53,10 +53,29 @@ UPDATABLE_FIELDS = (
     "workspace",
     "code",
     "trigger",
+    "event_type",
+    "event_attr",
     "models",
     "priority",
     "timeout",
 )
+
+# 事件类型到程序 event_type 的映射（部分支持事件，保留旧版全部消息行为）
+EVENT_NOTICE_KINDS = {
+    "group_recall": "recall",
+    "group_increase": "member_increase",
+}
+
+# 消息段类型到程序 event_attr 的映射（用于消息属性过滤）
+EVENT_ATTR_SEGMENT_KINDS = {
+    "plain": "text",
+    "image": "image",
+    "face": "face",
+    "at": "at",
+    "atall": "at",
+    "record": "voice",
+    "reply": "reply",
+}
 
 
 class BlockyPlugin(Star):
@@ -105,15 +124,35 @@ class BlockyPlugin(Star):
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=DEFAULT_PRIORITY)
     async def on_message(self, event: AstrMessageEvent) -> None:
-        """监听全部消息，执行所有命中触发条件的已启用程序。"""
+        """监听全部事件，执行所有命中触发条件的已启用程序。
+
+        普通消息事件会做文本/属性过滤；撤回、新成员加入、戳一戳等通知事件
+        按程序设置的 ``event_type`` 分派（见 :func:`_event_kind`）。
+        """
         if not self._plugin_enabled():
             return
-        message = (event.message_str or "").strip()
-        if not message or self._is_skipped(message):
-            return
-        if self.config.get("admin_only_programs") and not event.is_admin():
-            return
-        programs = [p for p in self.manager.enabled_programs() if p.matches(event)]
+        kind = self._event_kind(event)
+        if kind == "message":
+            message = (event.message_str or "").strip()
+            if not message or self._is_skipped(message):
+                return
+            if self.config.get("admin_only_programs") and not event.is_admin():
+                return
+            programs = [
+                p
+                for p in self.manager.enabled_programs()
+                if p.event_type == "message"
+                and p.matches(event)
+                and self._attr_matches(p, event)
+            ]
+        else:
+            if self.config.get("admin_only_programs") and not event.is_admin():
+                return
+            programs = [
+                p
+                for p in self.manager.enabled_programs()
+                if p.event_type == kind
+            ]
         if not programs:
             return
         await self._run_programs(event, programs)
@@ -398,6 +437,7 @@ class BlockyPlugin(Star):
             chat_responses=body.get("chat_responses") or None,
             is_admin=bool(body.get("is_admin")),
             is_private=bool(body.get("is_private")),
+            message_type=str(body.get("message_type") or "text"),
         )
         return json_response({"ok": True, **result})
 
@@ -560,6 +600,42 @@ class BlockyPlugin(Star):
         return json_response({"ok": True, "imported": count})
 
     # ---------- 内部工具 ----------
+
+    @staticmethod
+    def _event_kind(event: AstrMessageEvent) -> str:
+        """判断事件类别：message 或具体通知事件类型。
+
+        AstrBot 把 OneBot 通知（撤回/成员加入/戳一戳等）统一包装为消息事件，
+        原始事件保存在 ``message_obj.raw_message`` 中，据此区分。
+        """
+        raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
+        if isinstance(raw, dict) and raw.get("post_type") == "notice":
+            notice_type = raw.get("notice_type")
+            if notice_type in EVENT_NOTICE_KINDS:
+                return EVENT_NOTICE_KINDS[notice_type]
+            if notice_type == "notify" and raw.get("sub_type") == "poke":
+                return "poke"
+            if notice_type == "friend_poke":
+                return "poke"
+            return "other_notice"
+        return "message"
+
+    @staticmethod
+    def _attr_matches(program: BlockyProgram, event: AstrMessageEvent) -> bool:
+        """按程序的 ``event_attr`` 过滤消息内容类型；any 表示不限制。"""
+        attr = getattr(program, "event_attr", "any") or "any"
+        if attr == "any":
+            return True
+        getter = getattr(event, "get_messages", None)
+        segments = list(getter()) if callable(getter) else []
+        if not segments:
+            return attr == "text"
+        kinds = set()
+        for seg in segments:
+            seg_type = getattr(seg, "type", None)
+            name = str(getattr(seg_type, "name", None) or seg_type or "").lower()
+            kinds.add(EVENT_ATTR_SEGMENT_KINDS.get(name, name))
+        return attr in kinds
 
     def _plugin_enabled(self) -> bool:
         """是否启用插件总开关。"""

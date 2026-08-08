@@ -16,7 +16,9 @@ import logging
 import math
 import random
 import textwrap
-from typing import Any
+import time
+from functools import lru_cache
+from typing import Any, ClassVar
 
 from .program import CONTENT_BLOCKLY, BlockyProgram
 
@@ -177,14 +179,90 @@ async def _http_request(
 class BlockyRuntime:
     """积木生成代码通过 ``_blk`` 调用本对象，屏蔽底层 AstrBot 细节。"""
 
+    # 段类型（ComponentType.name 小写）到事件属性（EVENT_ATTRS）的映射
+    ATTR_SEGMENT_KINDS: ClassVar[dict[str, str]] = {
+        "plain": "text",
+        "image": "image",
+        "face": "face",
+        "at": "at",
+        "atall": "at",
+        "record": "voice",
+    }
+
     def __init__(self, context, event, program: BlockyProgram) -> None:
         self._ctx = context
         self._event = event
         self._program = program
 
-    # ---------- 消息读取 ----------
+    # ---------- 事件读取 ----------
+    def _messages(self) -> list:
+        getter = getattr(self._event, "get_messages", None)
+        if callable(getter):
+            try:
+                return list(getter() or [])
+            except Exception:  # noqa: BLE001 - 段读取失败按空处理
+                return []
+        return list(getattr(getattr(self._event, "message_obj", None), "message", []))
+
+    def _raw(self) -> Any:
+        obj = getattr(self._event, "message_obj", None)
+        return getattr(obj, "raw_message", None)
+
+    def _raw_get(self, key: str, default: str = "") -> str:
+        """从原始事件（如 OneBot 通知）中安全读取字段。"""
+        raw = self._raw()
+        if isinstance(raw, dict):
+            value = raw.get(key)
+            if value is not None and value != "":
+                return str(value)
+        return default
+
+    @staticmethod
+    def _segment_kind(seg: Any) -> str:
+        """返回消息段的小写类型名（如 image/face/atall/record/plain）。"""
+        seg_type = getattr(seg, "type", None)
+        name = getattr(seg_type, "name", None)
+        return str(name or seg_type or "").lower()
+
+    def get_event_type(self) -> str:
+        """当前程序监听的事件类型（message/recall/member_increase/poke）。"""
+        return str(self._program.event_type or "message")
+
     def get_message(self) -> str:
         return self._event.message_str
+
+    def get_message_type(self) -> str:
+        """返回第一条非文本段的消息类型（image/face/at/voice/reply/poke…），全文本返回 text。"""
+        for seg in self._messages():
+            kind = self._segment_kind(seg)
+            if kind not in ("plain", "", "unknown"):
+                return kind
+        return "text"
+
+    def has_type(self, kind: Any) -> bool:
+        """判断消息是否包含指定类型的内容（如 image/fae/at/voice/reply/poke）。"""
+        target = str(kind or "").strip().lower()
+        if not target:
+            return False
+        for seg in self._messages():
+            if self._segment_kind(seg) == target:
+                return True
+        return False
+
+    def get_target_id(self) -> str:
+        """被戳一戳等交互事件中目标的 ID。"""
+        return self._raw_get("target_id")
+
+    def get_operator_id(self) -> str:
+        """事件操作者的 ID（如撤回者、邀请者）。"""
+        return self._raw_get("operator_id")
+
+    def get_message_id(self) -> str:
+        """本条消息/被撤回消息的 ID。"""
+        message_id = getattr(getattr(self._event, "message_obj", None), "message_id", None)
+        if message_id:
+            return str(message_id)
+        return self._raw_get("message_id")
 
     def get_sender_name(self) -> str:
         return self._event.get_sender_name()
@@ -233,34 +311,70 @@ class BlockyRuntime:
         """主动发送消息到指定会话（unified_msg_origin）。"""
         await self._ctx.send_message(str(umo), _make_chain(text))
 
-    async def chat(self, prompt: Any) -> str:
+    def _parse_models(self, raw: Any) -> list[tuple[str | None, str]]:
+        """解析 AI 积木上「指定模型」字段。
+
+        支持逗号分隔的 ``provider:model``（或仅 ``model`` 的旧格式）列表，
+        顺序即优先级。
+        """
+        if raw is None or raw == "":
+            return []
+        if isinstance(raw, (list, tuple)):
+            return _parse_allowlist(raw)
+        parts = [p.strip() for p in str(raw).split(",")]
+        return _parse_allowlist([p for p in parts if p])
+
+    def _ordered_entries(
+        self,
+        entries: list[tuple[str | None, str]],
+        provider_id: str,
+        current_model: str,
+    ) -> list[tuple[str | None, str]]:
+        """把「当前会话正在使用的模型」放到列表首位，其余保持原顺序。
+
+        当前模型已就绪时直接复用它，避免不必要的重新请求；仍以用户指定顺序为后备。
+        """
+        ordered: list[tuple[str | None, str]] = []
+        for prov, model in entries:
+            if (prov is None or prov == provider_id) and model == current_model:
+                ordered.insert(0, (prov, model))
+            else:
+                ordered.append((prov, model))
+        return ordered
+
+    async def chat(self, prompt: Any, models: Any = None) -> str:
         """调用当前会话的 LLM，返回回答文本。
 
-        若程序配置了「可用模型」白名单（program.models 非空），白名单条目格式为
-        ``provider_id:model``（旧格式仅为 model，匹配任意提供商）：
-        - 当前会话的 提供商+模型 已在白名单内时直接使用；
-        - 否则改用白名单中的第一个条目（可跨提供商切换）。
+        ``models``（AI 积木「指定模型」字段）可显式指定一个有序的
+        ``provider:model`` 列表（逗号分隔）。提供时按顺序尝试：当前会话正在
+        使用的模型优先，其余模型请求失败时自动切换到下一个；全部失败则抛出错误。
+        未指定时沿用程序级「可用模型」白名单的原有逻辑。
         """
-        kwargs: dict[str, Any] = {}
         provider_id = await self._get_current_provider_id()
-        allowed = self._program.models or []
-        if allowed:
-            current_model = await self._get_current_model()
-            entries = _parse_allowlist(allowed)
-            matched = any(
-                model == current_model and (prov is None or prov == provider_id)
-                for prov, model in entries
+        current_model = await self._get_current_model()
+        entries = self._parse_models(models) or _parse_allowlist(self._program.models)
+        if not entries:
+            resp = await self._ctx.llm_generate(
+                chat_provider_id=provider_id, prompt=str(prompt)
             )
-            if not matched:
-                prov, model = entries[0] if entries else (None, None)
-                if model:
+            return resp.completion_text
+        ordered = self._ordered_entries(entries, provider_id, current_model)
+        errors: list[str] = []
+        for prov, model in ordered:
+            try:
+                kwargs: dict[str, Any] = {}
+                pid = prov or provider_id
+                if model and (model != current_model or pid != provider_id):
                     kwargs["model"] = model
-                if prov and prov != provider_id:
-                    provider_id = prov
-        resp = await self._ctx.llm_generate(
-            chat_provider_id=provider_id, prompt=str(prompt), **kwargs
+                resp = await self._ctx.llm_generate(
+                    chat_provider_id=pid, prompt=str(prompt), **kwargs
+                )
+                return resp.completion_text
+            except Exception as exc:  # noqa: BLE001 - 单模型失败切换到下一个
+                errors.append(f"{model}: {exc}")
+        raise RuntimeError(
+            f"指定模型全部请求失败：{'；'.join(errors)}"
         )
-        return resp.completion_text
 
     async def _get_current_provider_id(self) -> str:
         """获取当前会话使用的提供商 ID；无法获取时返回空字符串。"""
@@ -304,10 +418,9 @@ class BlockyRuntime:
 
     async def http_get_json(self, url: Any, headers: Any = None) -> Any:
         resp = await _http_request("GET", url, headers=headers)
-        import json as _json
 
         try:
-            return _json.loads(resp["body"])
+            return json.loads(resp["body"])
         except Exception:  # noqa: BLE001 - JSON 解析失败时返回空结果
             return {}
 
@@ -318,10 +431,9 @@ class BlockyRuntime:
         self, url: Any, data: Any = None, headers: Any = None
     ) -> Any:
         resp = await _http_request("POST", url, json_data=data, headers=headers)
-        import json as _json
 
         try:
-            return _json.loads(resp["body"])
+            return json.loads(resp["body"])
         except Exception:  # noqa: BLE001 - JSON 解析失败时返回空结果
             return {}
 
@@ -347,6 +459,13 @@ def wrap_code(code: str, func_name: str = "_blk_run") -> str:
     """将积木生成的代码包装为异步函数体。"""
     body = textwrap.indent(code or "", "    ", predicate=lambda line: line.strip())
     return f"async def {func_name}(event, ctx, _blk):\n{body}\n"
+
+
+@lru_cache(maxsize=256)
+def _compile_safe(source: str) -> Any:
+    """AST 静态检查 + 编译。代码相同的结果会被缓存，避免每条消息重复编译。"""
+    _assert_safe_source(source)
+    return compile(source, "<blocky>", "exec")
 
 
 def _build_namespace(context, event, program: BlockyProgram) -> dict:
@@ -392,8 +511,7 @@ async def run_program(
     source = wrap_code(code)
     ns = _build_namespace(context, event, program)
     try:
-        _assert_safe_source(source)
-        compiled = compile(source, f"<blocky:{program.id}>", "exec")
+        compiled = _compile_safe(source)
     except SyntaxError as exc:
         raise RuntimeError(f"程序代码存在语法错误：{exc}") from exc
     exec(compiled, ns)  # noqa: S102 - 受限命名空间 + AST 检查后执行
@@ -410,6 +528,7 @@ async def simulate_program(
     is_private: bool = False,
     current_model: str = "mock-model",
     current_provider: str = "mock_provider",
+    message_type: str = "text",
 ) -> dict:
     """使用模拟事件运行程序（WebUI 测试运行）。
 
@@ -422,6 +541,7 @@ async def simulate_program(
         is_private: 模拟事件是否为私聊。
         current_model: 模拟会话当前使用的模型名称。
         current_provider: 模拟会话当前使用的提供商 ID。
+        message_type: 模拟消息的类型（text/image/face/at/…）。
 
     Returns:
         包含 replies / sends / stopped / error / cost 的字典。
@@ -432,6 +552,7 @@ async def simulate_program(
         message_str=message,
         is_admin=is_admin,
         is_private=is_private,
+        message_type=message_type,
     )
     ctx = MockContext(
         current_model=current_model,
@@ -441,7 +562,7 @@ async def simulate_program(
         ctx.chat_responses.update(chat_responses)
 
     error = ""
-    start = asyncio.get_event_loop().time()
+    start = time.monotonic()
     try:
         await run_program(program, ctx, event, timeout=timeout)
     except asyncio.TimeoutError:
@@ -449,7 +570,7 @@ async def simulate_program(
     except Exception as exc:  # noqa: BLE001
         error = str(exc)
     finally:
-        cost = round(asyncio.get_event_loop().time() - start, 3)
+        cost = round(time.monotonic() - start, 3)
 
     return {
         "replies": list(event.sent_messages),

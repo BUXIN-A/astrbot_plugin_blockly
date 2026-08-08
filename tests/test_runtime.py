@@ -233,3 +233,73 @@ await _blk.reply(str(math.floor(3.7)) + ' ' + str(int(random.random() >= 0 or 1)
     )
     result = asyncio.run(run_sim(program, message="x"))
     assert "3 1" in result["replies"]
+
+
+def test_message_type_text_and_not():
+    program = BlockyProgram(
+        code="await _blk.reply(_blk.get_message_type())",
+    )
+    result = asyncio.run(run_sim(program, message="hi", message_type="text"))
+    assert result["replies"] == ["text"]
+    result2 = asyncio.run(run_sim(program, message="hi", message_type="image"))
+    assert result2["replies"] == ["image"]
+
+
+def test_has_type_blocks():
+    program = BlockyProgram(
+        code="""
+await _blk.reply(str(_blk.has_type('image')) + ',' + str(_blk.has_type('face')))
+""",
+    )
+    result = asyncio.run(run_sim(program, message="x", message_type="face"))
+    assert "False,True" in result["replies"]
+
+
+def test_event_type_and_ids():
+    program = BlockyProgram(
+        code="""
+await _blk.reply(_blk.get_event_type() + '|' + _blk.get_sender_id())
+""",
+    )
+    program.event_type = "recall"
+    result = asyncio.run(run_sim(program, message="x"))
+    assert result["replies"] == ["recall|123456789"]
+
+
+def test_chat_block_models_ordered():
+    """AI 积木「指定模型」按顺序尝试；成功即返回。"""
+    program = BlockyProgram(
+        models=[],
+        code="""
+await _blk.reply(await _blk.chat('天气', 'mock_provider:qwen-max,mock_provider:mock-model'))
+""",
+    )
+    result = asyncio.run(
+        run_sim(program, message="hi", chat_responses={"天气": "晴天"})
+    )
+    assert "晴天" in result["replies"]
+
+
+def test_chat_models_all_failed_raises():
+    """全部指定模型失败时报错并给出各模型原因。"""
+
+    async def failing_run():
+        from blocky.mock_event import MockContext, MockEvent
+        from blocky.runtime import run_program
+
+        program = BlockyProgram(
+            models=[],
+            code="""
+await _blk.reply(await _blk.chat('天气', 'bad_provider:bad-model'))
+""",
+        )
+        ctx = MockContext()
+        ctx.chat_failure_models = {"bad_provider:bad-model"}
+        try:
+            await run_program(program, ctx, MockEvent(message_str="hi"))
+        except RuntimeError as exc:
+            return str(exc)
+        return ""
+
+    error = asyncio.run(failing_run())
+    assert "全部请求失败" in error

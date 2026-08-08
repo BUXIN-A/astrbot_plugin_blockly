@@ -14,6 +14,12 @@ TRIGGER_TYPES = ("all", "contains", "prefix", "regex", "admin_only")
 CONTENT_BLOCKLY = "blockly"
 CONTENT_PYTHON = "python"
 
+# 程序监听的事件类型
+EVENT_TYPES = ("message", "recall", "member_increase", "poke")
+
+# 消息事件的属性过滤（仅对 event_type=message 生效）
+EVENT_ATTRS = ("any", "text", "image", "face", "at", "voice", "reply")
+
 
 def new_id() -> str:
     return uuid.uuid4().hex[:12]
@@ -35,6 +41,8 @@ class BlockyProgram:
     workspace: str = ""  # Blockly 序列化 JSON（content_type 为 blockly 时使用）
     code: str = ""  # 生成的或手写的 Python 代码
     trigger: dict = field(default_factory=lambda: {"type": "all", "value": ""})
+    event_type: str = "message"  # 监听的 AstrBot 事件类型（消息/撤回/新成员/戳一戳）
+    event_attr: str = "any"  # 消息属性过滤：any/text/image/face/at/voice/reply
     models: list[str] = field(
         default_factory=list
     )  # AI 积木可用模型白名单，空表示不限制
@@ -69,6 +77,10 @@ class BlockyProgram:
         if trig.get("type") not in TRIGGER_TYPES:
             trig["type"] = "all"
         data["trigger"] = trig
+        if data.get("event_type") not in EVENT_TYPES:
+            data["event_type"] = "message"
+        if data.get("event_attr") not in EVENT_ATTRS:
+            data["event_attr"] = "any"
         try:
             data["priority"] = int(data.get("priority") or 0)
         except (TypeError, ValueError):

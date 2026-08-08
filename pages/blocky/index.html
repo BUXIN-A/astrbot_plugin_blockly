@@ -80,15 +80,10 @@
           <input class="input number" type="number" id="timeoutInput" value="30" />
         </label>
         <div class="models-field" title="「AI 回答」积木可用的模型白名单，留空表示不限制">
-          <label for="modelInput">可用模型</label>
-          <div class="chips" id="modelChips"></div>
-          <div class="model-add-row">
-            <input class="input model-input" id="modelInput" list="modelList"
-              placeholder="输入模型名后回车添加" />
-            <datalist id="modelList"></datalist>
-            <button class="btn btn-sm" id="addModelBtn" title="添加模型">+ 添加</button>
-            <button class="btn btn-sm" id="loadModelsBtn" title="加载当前可用模型">加载可用模型</button>
-          </div>
+          <label for="openModelsBtn">可用模型</label>
+          <button type="button" class="btn btn-sm" id="openModelsBtn">
+            <span id="modelsSummary">不限制</span>
+          </button>
         </div>
         <input class="input desc-input" id="descriptionInput" placeholder="描述（可选）" />
       </div>
@@ -97,19 +92,6 @@
         <div id="blocklyDiv"></div>
         <textarea id="codeEditor" spellcheck="false" placeholder="# 在此直接编写 Python 代码&#10;# 可用：event（消息事件）、ctx（AstrBot 上下文）、_blk（Blocky 操作对象）&#10;# 示例：&#10;await _blk.reply('你好，' + _blk.get_sender_name())"></textarea>
       </div>
-
-      <section class="test-panel" id="testPanel">
-        <div class="test-title">测试运行</div>
-        <div class="test-row">
-          <textarea class="input test-message" id="testMessage" rows="2" placeholder="输入一条模拟消息（如：你好）"></textarea>
-          <div class="test-opts">
-            <label><input type="checkbox" id="testAdmin" /> 管理员</label>
-            <label><input type="checkbox" id="testPrivate" /> 私聊</label>
-          </div>
-        </div>
-        <textarea class="input test-chat" id="testChat" rows="2" placeholder="可选：AI 回答的模拟结果（JSON，如 {\"你好\":\"你好呀\"}）"></textarea>
-        <pre class="test-result" id="testResult"></pre>
-      </section>
     </main>
   </div>
 
@@ -169,9 +151,65 @@
     </div>
   </div>
 
+    <!-- 可用模型设置弹窗 -->
+  <div class="modal-overlay hidden" id="modelModal">
+    <div class="modal model-wide" role="dialog" aria-modal="true">
+      <div class="modal-title">可用模型（AI 回答白名单，按顺序优先）</div>
+      <div class="modal-message">留空表示不限制；失败的模型会自动切换为下一个。</div>
+      <div class="model-pick-row">
+        <input class="input model-input" id="modelModalInput" list="modelList"
+          placeholder="输入或选择 provider:model，回车添加" />
+        <datalist id="modelList"></datalist>
+        <button class="btn btn-sm" id="modelModalAdd">添加</button>
+        <button class="btn btn-sm btn-ghost" id="modelModalLoad">加载可用模型</button>
+      </div>
+      <div class="model-edit-list" id="modelEditList"></div>
+      <div class="modal-actions">
+        <button class="btn" id="modelModalCancel">取消</button>
+        <button class="btn btn-primary" id="modelModalOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 测试运行弹窗 -->
+  <div class="modal-overlay hidden" id="testModal">
+    <div class="modal test-wide" role="dialog" aria-modal="true">
+      <div class="modal-title">测试运行</div>
+      <div class="form-row">
+        <label for="testMessage">模拟消息</label>
+        <textarea class="input test-message" id="testMessage" rows="2" placeholder="输入一条模拟消息（如：你好）"></textarea>
+        <div class="test-opts">
+          <label>消息类型
+            <select class="select" id="testMsgType">
+              <option value="text">纯文本</option>
+              <option value="image">图片</option>
+              <option value="face">表情</option>
+              <option value="at">@某人</option>
+              <option value="voice">语音</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="testAdmin" /> 管理员</label>
+          <label><input type="checkbox" id="testPrivate" /> 私聊</label>
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="testChat">AI 回答模拟结果（JSON，可选）</label>
+        <textarea class="input test-chat" id="testChat" rows="2" placeholder='{"你好":"你好呀"}'></textarea>
+      </div>
+      <pre class="test-result" id="testResult"></pre>
+      <div class="modal-actions">
+        <button class="btn" id="testCancel">关闭</button>
+        <button class="btn btn-primary" id="testOk">运行</button>
+      </div>
+    </div>
+  </div>
+
   <xml id="toolbox" style="display: none">
     <category name="事件" colour="#5C81A6">
       <block type="blocky_event"></block>
+      <block type="blocky_event_recall"></block>
+      <block type="blocky_event_member_increase"></block>
+      <block type="blocky_event_poke"></block>
     </category>
     <category name="消息" colour="#5B67A5">
       <block type="blocky_get_message"></block>
@@ -180,6 +218,10 @@
       <block type="blocky_get_group_id"></block>
       <block type="blocky_get_session"></block>
       <block type="blocky_get_platform"></block>
+      <block type="blocky_get_message_type"></block>
+      <block type="blocky_has_image"></block>
+      <block type="blocky_has_face"></block>
+      <block type="blocky_has_at"></block>
       <block type="blocky_is_admin"></block>
       <block type="blocky_is_private"></block>
     </category>
@@ -203,6 +245,10 @@
     <category name="其他" colour="#A55B5B">
       <block type="blocky_log"></block>
       <block type="blocky_sleep"></block>
+      <block type="blocky_get_event_type"></block>
+      <block type="blocky_get_message_id"></block>
+      <block type="blocky_get_target_id"></block>
+      <block type="blocky_get_operator_id"></block>
     </category>
     <category name="逻辑" colour="#5C81A6">
       <block type="controls_if"></block>

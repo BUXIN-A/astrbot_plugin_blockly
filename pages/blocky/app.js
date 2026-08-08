@@ -164,15 +164,63 @@ async function apiPost(endpoint, body) {
 
 /* ---------- Blockly 自定义积木 ---------- */
 
+// 事件入口块类型 -> 程序监听的事件类型
+const EVENT_BLOCK_MAP = {
+  blocky_event: "message",
+  blocky_event_recall: "recall",
+  blocky_event_member_increase: "member_increase",
+  blocky_event_poke: "poke",
+};
+
+const EVENT_ATTR_OPTIONS = [
+  ["任意", "any"],
+  ["纯文本", "text"],
+  ["图片", "image"],
+  ["表情", "face"],
+  ["@某人", "at"],
+  ["语音", "voice"],
+  ["引用回复", "reply"],
+];
+
 function defineBlocks() {
   Blockly.common.defineBlocksWithJsonArray([
     {
       type: "blocky_event",
-      message0: "当接收到消息 %1",
-      args0: [{ type: "input_statement", name: "DO" }],
+      message0: "当接收到消息 %1，消息属性 %2",
+      args0: [
+        { type: "input_statement", name: "DO" },
+        { type: "field_dropdown", name: "ATTR", options: EVENT_ATTR_OPTIONS },
+      ],
       colour: 210,
       nextStatement: null,
-      tooltip: "程序入口：在此放置收到消息时需要执行的积木。",
+      tooltip:
+        "程序入口：收到消息且满足消息属性时执行。属性为「任意」时可用「消息类型」块自行判断。",
+    },
+    {
+      type: "blocky_event_recall",
+      message0: "当撤回消息 %1",
+      args0: [{ type: "input_statement", name: "DO" }],
+      nextStatement: null,
+      colour: 210,
+      tooltip:
+        "程序入口：有人撤回消息时执行。可用「消息 ID/发送者/群号」等块读取被撤回消息信息。",
+    },
+    {
+      type: "blocky_event_member_increase",
+      message0: "当新成员加入 %1",
+      args0: [{ type: "input_statement", name: "DO" }],
+      nextStatement: null,
+      colour: 210,
+      tooltip: "程序入口：新成员加入群聊时执行。可用「发送者ID/名称」读取新成员。",
+    },
+    {
+      type: "blocky_event_poke",
+      message0: "当被戳一戳 %1",
+      args0: [{ type: "input_statement", name: "DO" }],
+      nextStatement: null,
+      colour: 210,
+      tooltip:
+        "程序入口：群里有人戳一戳时执行。「目标ID」为被戳者，「发送者ID」为发起者。",
     },
     {
       type: "blocky_get_message",
@@ -229,6 +277,64 @@ function defineBlocks() {
       output: "Boolean",
       colour: 160,
       tooltip: "消息是否来自私聊。",
+    },
+    {
+      type: "blocky_get_message_type",
+      message0: "消息类型",
+      output: "String",
+      colour: 160,
+      tooltip:
+        "消息的类型：text（纯文本）/image（图片）/face（表情）/at（@）/voice（语音）/reply（引用回复）等。",
+    },
+    {
+      type: "blocky_has_image",
+      message0: "包含图片",
+      output: "Boolean",
+      colour: 160,
+      tooltip: "消息中是否包含图片。",
+    },
+    {
+      type: "blocky_has_face",
+      message0: "包含表情",
+      output: "Boolean",
+      colour: 160,
+      tooltip: "消息中是否包含表情。",
+    },
+    {
+      type: "blocky_has_at",
+      message0: "包含@",
+      output: "Boolean",
+      colour: 160,
+      tooltip: "消息中是否包含 @某人 或 @全体成员。",
+    },
+    {
+      type: "blocky_get_event_type",
+      message0: "事件类型",
+      output: "String",
+      colour: 160,
+      tooltip:
+        "当前触发的事件类型：message / recall（撤回）/ member_increase（新成员加入）/ poke（戳一戳）。",
+    },
+    {
+      type: "blocky_get_message_id",
+      message0: "消息ID",
+      output: "String",
+      colour: 160,
+      tooltip: "本条消息（或被撤回消息）的 ID。",
+    },
+    {
+      type: "blocky_get_target_id",
+      message0: "目标ID",
+      output: "String",
+      colour: 160,
+      tooltip: "交互事件的目标 ID（如戳一戳中被戳者的 ID）。",
+    },
+    {
+      type: "blocky_get_operator_id",
+      message0: "操作者ID",
+      output: "String",
+      colour: 160,
+      tooltip: "事件操作者的 ID（如撤回者、邀请者）。",
     },
     {
       type: "blocky_reply",
@@ -296,12 +402,20 @@ function defineBlocks() {
     },
     {
       type: "blocky_chat",
-      message0: "AI 回答 %1",
-      args0: [{ type: "input_value", name: "PROMPT", check: "String" }],
+      message0: "AI 回答 %1，指定模型 %2",
+      args0: [
+        { type: "input_value", name: "PROMPT", check: "String" },
+        {
+          type: "field_input",
+          name: "MODELS",
+          text: "",
+          spellcheck: false,
+        },
+      ],
       output: "String",
       colour: 90,
       tooltip:
-        "调用当前会话的 AI 模型，返回回答文本；受程序「可用模型」白名单约束。",
+        "调用 AI 模型返回回答文本。「指定模型」可用逗号分隔多个 provider:model，按顺序优先、失败自动切换下一个；留空时按程序「可用模型」白名单。",
     },
     {
       type: "blocky_http_get",
@@ -363,14 +477,17 @@ function defineBlocks() {
 function registerPythonGenerator() {
   const py = Blockly.Python;
 
+  // 事件入口块：DO 是程序入口，生成其整棵子树作为顶层代码。
+  // 不能用 statementToCode：它会为整段代码追加 Blockly 缩进，导致顶层代码被整体
+  // 缩进，再经后端 wrap 成函数体后出现 unexpected indent / unindent 语法错误。
   py.forBlock["blocky_event"] = function (block) {
-    // DO 是程序入口，生成其整棵子树作为顶层代码。
-    // 不能用 statementToCode：它会为整段代码追加 Blockly 缩进，导致顶层代码被整体
-    // 缩进，再经后端 wrap 成函数体后出现 unexpected indent / unindent 语法错误。
     const target = block.getInputTargetBlock("DO");
     if (!target) return "";
     return py.blockToCode(target);
   };
+  py.forBlock["blocky_event_recall"] = py.forBlock["blocky_event"];
+  py.forBlock["blocky_event_member_increase"] = py.forBlock["blocky_event"];
+  py.forBlock["blocky_event_poke"] = py.forBlock["blocky_event"];
 
   const simpleValueBlocks = {
     blocky_get_message: "_blk.get_message()",
@@ -379,6 +496,14 @@ function registerPythonGenerator() {
     blocky_get_group_id: "_blk.get_group_id()",
     blocky_get_session: "_blk.get_session()",
     blocky_get_platform: "_blk.get_platform()",
+    blocky_get_message_type: "_blk.get_message_type()",
+    blocky_has_image: "_blk.has_type('image')",
+    blocky_has_face: "_blk.has_type('face')",
+    blocky_has_at: "_blk.has_type('at')",
+    blocky_get_event_type: "_blk.get_event_type()",
+    blocky_get_message_id: "_blk.get_message_id()",
+    blocky_get_target_id: "_blk.get_target_id()",
+    blocky_get_operator_id: "_blk.get_operator_id()",
     blocky_is_admin: "_blk.is_admin()",
     blocky_is_private: "_blk.is_private()",
   };
@@ -417,7 +542,11 @@ function registerPythonGenerator() {
 
   py.forBlock["blocky_chat"] = function (block) {
     const prompt = py.valueToCode(block, "PROMPT", py.ORDER_NONE) || "''";
-    return [`await _blk.chat(${prompt})`, py.ORDER_FUNCTION_CALL];
+    const models = (block.getFieldValue("MODELS") || "").trim();
+    const expr = models
+      ? `await _blk.chat(${prompt}, '${models.replace(/'/g, "\\'")}')`
+      : `await _blk.chat(${prompt})`;
+    return [expr, py.ORDER_FUNCTION_CALL];
   };
 
   py.forBlock["blocky_http_get"] = function (block) {
@@ -610,9 +739,7 @@ function enableEditor() {
     "timeoutInput",
     "triggerType",
     "triggerValue",
-    "modelInput",
-    "addModelBtn",
-    "loadModelsBtn",
+    "openModelsBtn",
     "saveBtn",
     "testBtn",
     "resetBtn",
@@ -646,7 +773,7 @@ async function loadProgram(p) {
   $("testResult").textContent = "";
   $("testResult").classList.remove("err");
   selectedModels = Array.isArray(p.models) ? p.models.slice() : [];
-  renderModels();
+  renderModelsSummary();
 
   currentWorkspaceState = null;
   try {
@@ -687,15 +814,13 @@ function applyEditorMode(mode) {
 
 function generateCode() {
   try {
-    // 只生成挂在「当接收到消息」下的逻辑；画布上未连接的游离块不参与生成，
+    // 只生成主入口事件块（第一个事件积木）下的逻辑；画布上未连接的游离块不参与生成，
     // 避免游离的「返回消息」等块被意外执行。
     const blocks = workspace.getTopBlocks(true);
-    const entries = blocks.filter((b) => b.type === "blocky_event");
+    const entries = blocks.filter((b) => EVENT_BLOCK_MAP[b.type]);
     Blockly.Python.init(workspace);
     if (entries.length) {
-      return entries
-        .map((b) => Blockly.Python.blockToCode(b, true) || "")
-        .join("\n");
+      return Blockly.Python.blockToCode(entries[0], true) || "";
     }
     return Blockly.Python.workspaceToCode(workspace);
   } catch (err) {
@@ -714,9 +839,21 @@ function collectForm() {
       : "";
   let code = "";
   let workspaceState = null;
+  let eventType = "message";
+  let eventAttr = "any";
   if (currentMode === "blockly") {
     workspaceState = Blockly.serialization.workspaces.save(workspace);
     code = generateCode();
+    const entry = workspace
+      .getTopBlocks(true)
+      .find((b) => EVENT_BLOCK_MAP[b.type]);
+    if (entry) {
+      eventType = EVENT_BLOCK_MAP[entry.type];
+      eventAttr =
+        entry.type === "blocky_event"
+          ? entry.getFieldValue("ATTR") || "any"
+          : "any";
+    }
   } else {
     workspaceState = currentWorkspaceState;
     code = $("codeEditor").value;
@@ -728,6 +865,8 @@ function collectForm() {
     workspace: workspaceState ? JSON.stringify(workspaceState) : "",
     code: code,
     trigger: { type: triggerType, value: triggerValue },
+    event_type: eventType,
+    event_attr: eventAttr,
     models: selectedModels.slice(),
     priority: Number($("priorityInput").value) || 0,
     timeout: Math.max(1, Number($("timeoutInput").value) || 30),
@@ -779,7 +918,7 @@ function clearEditor() {
   currentWorkspaceState = null;
   currentMode = "blockly";
   selectedModels = [];
-  renderModels();
+  renderModelsSummary();
   workspace.clear();
   $("codeEditor").value = "";
   $("nameInput").value = "";
@@ -803,9 +942,7 @@ function clearEditor() {
     "timeoutInput",
     "triggerType",
     "triggerValue",
-    "modelInput",
-    "addModelBtn",
-    "loadModelsBtn",
+    "openModelsBtn",
     "saveBtn",
     "testBtn",
     "resetBtn",
@@ -874,12 +1011,14 @@ async function runTest() {
     return;
   }
   $("testResult").textContent = "正在运行…";
+  $("testResult").classList.remove("err");
   try {
     await saveProgram(true);
     const res = await apiPost("programs/" + currentId + "/test", {
       message: $("testMessage").value,
       is_admin: $("testAdmin").checked,
       is_private: $("testPrivate").checked,
+      message_type: $("testMsgType").value,
       chat_responses: chatResponses,
     });
     const lines = [];
@@ -914,6 +1053,22 @@ async function runTest() {
     $("testResult").textContent = "运行出错：" + err.message;
     $("testResult").classList.add("err");
   }
+}
+
+function openTestDialog() {
+  if (!currentId) return;
+  $("testResult").textContent = "";
+  $("testResult").classList.remove("err");
+  openModal("testModal");
+}
+
+function bindTestModal() {
+  const close = () => closeModal("testModal");
+  $("testOk").onclick = runTest;
+  $("testCancel").onclick = close;
+  $("testModal").addEventListener("click", (e) => {
+    if (e.target === $("testModal")) close();
+  });
 }
 
 /* ---------- 导入导出 ---------- */
@@ -1061,35 +1216,62 @@ async function loadAvailableModels() {
   }
 }
 
-function renderModels() {
-  const chips = $("modelChips");
-  chips.innerHTML = "";
+function renderModelsSummary() {
+  $("modelsSummary").textContent = selectedModels.length
+    ? `已选 ${selectedModels.length} 个模型`
+    : "未配置";
+}
+
+function renderModelEditList() {
+  const list = $("modelEditList");
+  list.innerHTML = "";
   if (!selectedModels.length) {
-    const hint = document.createElement("span");
-    hint.className = "chips-empty";
-    hint.textContent = "不限制";
-    chips.appendChild(hint);
+    const hint = document.createElement("div");
+    hint.className = "modal-message";
+    hint.textContent = "尚未选择任何模型（不限制，AI 回答使用当前会话模型）。";
+    list.appendChild(hint);
     return;
   }
-  for (const m of selectedModels) {
-    const chip = document.createElement("span");
-    chip.className = "chip";
+  selectedModels.forEach((id, idx) => {
+    const row = document.createElement("div");
+    row.className = "model-edit-row";
     const label = document.createElement("span");
-    label.textContent = modelDisplay(m);
-    label.title = m;
-    const rm = document.createElement("button");
-    rm.type = "button";
-    rm.className = "chip-remove";
-    rm.innerHTML = `<img class="icon icon-sm" src="${IMG_DELETE}" alt="移除" />`;
-    rm.onclick = () => {
-      selectedModels = selectedModels.filter((x) => x !== m);
-      renderModels();
-      markDirty();
+    label.className = "m-label";
+    label.textContent = modelDisplay(id);
+    label.title = id;
+    const up = document.createElement("button");
+    up.className = "icon-btn";
+    up.textContent = "▲";
+    up.title = "上移（更优先）";
+    up.disabled = idx === 0;
+    up.onclick = () => {
+      const tmp = selectedModels[idx];
+      selectedModels[idx] = selectedModels[idx - 1];
+      selectedModels[idx - 1] = tmp;
+      renderModelEditList();
     };
-    chip.appendChild(label);
-    chip.appendChild(rm);
-    chips.appendChild(chip);
-  }
+    const down = document.createElement("button");
+    down.className = "icon-btn";
+    down.textContent = "▼";
+    down.title = "下移";
+    down.disabled = idx === selectedModels.length - 1;
+    down.onclick = () => {
+      const tmp = selectedModels[idx];
+      selectedModels[idx] = selectedModels[idx + 1];
+      selectedModels[idx + 1] = tmp;
+      renderModelEditList();
+    };
+    const remove = document.createElement("button");
+    remove.className = "icon-btn danger";
+    remove.title = "移除";
+    remove.innerHTML = `<img class="icon icon-sm" src="${IMG_DELETE}" alt="移除" />`;
+    remove.onclick = () => {
+      selectedModels.splice(idx, 1);
+      renderModelEditList();
+    };
+    row.append(label, up, down, remove);
+    list.appendChild(row);
+  });
 }
 
 function addModel(name) {
@@ -1100,8 +1282,50 @@ function addModel(name) {
     return;
   }
   selectedModels.push(name);
-  renderModels();
-  markDirty();
+  renderModelEditList();
+}
+
+let modelDialogBackup = [];
+
+function openModelsDialog() {
+  modelDialogBackup = selectedModels.slice();
+  loadAvailableModels().then(() => renderModelEditList());
+  openModal("modelModal");
+}
+
+function closeModelDialog() {
+  selectedModels = modelDialogBackup.slice();
+  closeModal("modelModal");
+}
+
+function bindModelModal() {
+  $("modelModalAdd").onclick = () => {
+    addModel($("modelModalInput").value);
+    $("modelModalInput").value = "";
+  };
+  $("modelModalInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addModel($("modelModalInput").value);
+      $("modelModalInput").value = "";
+    }
+  });
+  $("modelModalLoad").onclick = () => {
+    loadAvailableModels().then(() => {
+      showToast("可用模型已刷新");
+      renderModelEditList();
+    });
+  };
+  $("modelModalCancel").onclick = closeModelDialog;
+  $("modelModalOk").onclick = () => {
+    $("modelModalInput").value = "";
+    closeModal("modelModal");
+    renderModelsSummary();
+    markDirty();
+  };
+  $("modelModal").addEventListener("click", (e) => {
+    if (e.target === $("modelModal")) closeModelDialog();
+  });
 }
 
 function markDirty() {
@@ -1119,7 +1343,7 @@ function updateTriggerValueState() {
 function bindEvents() {
   $("newBtn").onclick = newProgram;
   $("saveBtn").onclick = () => saveProgram(false);
-  $("testBtn").onclick = runTest;
+  $("testBtn").onclick = openTestDialog;
   $("refreshBtn").onclick = refreshPrograms;
   $("resetBtn").onclick = () => {
     if (!currentId) return;
@@ -1173,18 +1397,7 @@ function bindEvents() {
 
   $("testChat").addEventListener("input", markDirty);
 
-  $("addModelBtn").onclick = () => {
-    addModel($("modelInput").value);
-    $("modelInput").value = "";
-  };
-  $("modelInput").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addModel($("modelInput").value);
-      $("modelInput").value = "";
-    }
-  });
-  $("loadModelsBtn").onclick = loadAvailableModels;
+  $("openModelsBtn").onclick = openModelsDialog;
 
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {
@@ -1196,6 +1409,8 @@ function bindEvents() {
   bindConfirmModal();
   bindCreateModal();
   bindImportModal();
+  bindModelModal();
+  bindTestModal();
 }
 
 /* ---------- 启动 ---------- */

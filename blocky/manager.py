@@ -21,6 +21,7 @@ class BlockyManager:
         self.programs_dir = Path(data_dir) / "programs"
         self.programs_dir.mkdir(parents=True, exist_ok=True)
         self._programs: dict[str, BlockyProgram] = {}
+        self._enabled: list[BlockyProgram] | None = None  # 已启用程序缓存
         self._lock = asyncio.Lock()
         self.load()
 
@@ -28,6 +29,7 @@ class BlockyManager:
     def load(self) -> None:
         """从磁盘加载全部程序。"""
         self._programs.clear()
+        self._invalidate_cache()
         for path in sorted(self.programs_dir.glob("*.json")):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
@@ -35,6 +37,10 @@ class BlockyManager:
                 self._programs[program.id] = program
             except Exception as exc:  # noqa: BLE001
                 logger.warning("跳过损坏的程序文件 %s: %s", path, exc)
+
+    def _invalidate_cache(self) -> None:
+        """程序变更后使启用缓存失效，下次查询时重建。"""
+        self._enabled = None
 
     def _path(self, pid: str) -> Path:
         return self.programs_dir / f"{pid}.json"
@@ -58,9 +64,12 @@ class BlockyManager:
         return programs
 
     def enabled_programs(self) -> list[BlockyProgram]:
-        programs = [p for p in self._programs.values() if p.enabled]
-        programs.sort(key=lambda p: (-p.priority, p.created_at))
-        return programs
+        """按优先级排序返回已启用程序；未变更时复用缓存以减少排序开销。"""
+        if self._enabled is None:
+            programs = [p for p in self._programs.values() if p.enabled]
+            programs.sort(key=lambda p: (-p.priority, p.created_at))
+            self._enabled = programs
+        return list(self._enabled)
 
     # ---------- 增删改 ----------
 
@@ -91,12 +100,14 @@ class BlockyManager:
                 code=code,
             )
             self._programs[program.id] = program
+            self._invalidate_cache()
             await self._save(program)
             return program
 
     async def update(self, program: BlockyProgram) -> None:
         async with self._lock:
             self._programs[program.id] = program
+            self._invalidate_cache()
             await self._save(program)
 
     async def delete(self, pid: str) -> bool:
@@ -104,6 +115,7 @@ class BlockyManager:
             program = self._programs.pop(pid, None)
             if program is None:
                 return False
+            self._invalidate_cache()
             path = self._path(pid)
             if path.exists():
                 path.unlink()
@@ -120,6 +132,7 @@ class BlockyManager:
             clone.enabled = False
             clone.created_at = clone.updated_at = _now()
             self._programs[clone.id] = clone
+            self._invalidate_cache()
             await self._save(clone)
             return clone
 
