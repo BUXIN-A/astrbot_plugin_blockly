@@ -824,6 +824,7 @@ let trashcanToggleImg = null; // 内部的勾选图标
 let _origCloseLid = null; // 保存原始 trashcan.closeLid
 let _origCloseFlyout = null; // 保存原始 trashcan.closeFlyout
 let _origToolboxFlyoutHide = null; // 保存原始 toolbox flyout.hide
+let _origClearSelection = null; // 保存原始 toolbox.clearSelection
 
 function trashcanVisible() {
   try {
@@ -834,7 +835,7 @@ function trashcanVisible() {
 }
 
 function patchSticky(on) {
-  // 当常驻开启时，阻止收纳盒与工具箱 flyout 因鼠标点击等互动自动关闭。
+  // 当常驻开启时，阻止收纳盒、工具箱 flyout 以及工具箱分类焦点因点击工作区而丢失。
   const tc = workspace && workspace.trashcan;
   if (tc) {
     if (on) {
@@ -857,6 +858,26 @@ function patchSticky(on) {
       if (_origToolboxFlyoutHide) { flyout.hide = _origToolboxFlyoutHide; _origToolboxFlyoutHide = null; }
     }
   }
+  if (tb) {
+    if (on) {
+      if (!_origClearSelection) _origClearSelection = tb.clearSelection.bind(tb);
+      tb.clearSelection = () => {};
+    } else {
+      if (_origClearSelection) { tb.clearSelection = _origClearSelection; _origClearSelection = null; }
+    }
+  }
+}
+
+function selectFirstToolboxCategory() {
+  // 选中工具箱第一个分类并展开其 flyout。
+  const tb = workspace && workspace.toolbox;
+  if (!tb || typeof tb.getToolboxItems !== "function") return;
+  const items = tb.getToolboxItems();
+  if (!items || !items.length) return;
+  const first = items[0];
+  if (first && typeof first.isSelectable === "function" && first.isSelectable() && typeof tb.setSelectedItem === "function") {
+    tb.setSelectedItem(first);
+  }
 }
 
 function setTrashcanVisible(on) {
@@ -865,7 +886,12 @@ function setTrashcanVisible(on) {
   } catch {
     // 插件页运行在沙箱 iframe 中且无 allow-same-origin，localStorage 不可用，静默降级
   }
+  const prev = trashcanToggleCheck ? trashcanToggleCheck.checked : null;
   patchSticky(on);
+  if (on && prev === false) {
+    // 从关闭切换为开启：默认选中第一个分类（事件）并展开其 flyout
+    selectFirstToolboxCategory();
+  }
   if (trashcanToggleCheck) {
     trashcanToggleCheck.checked = on;
   }
