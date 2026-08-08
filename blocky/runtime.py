@@ -22,7 +22,12 @@ from typing import Any, ClassVar
 
 from .program import CONTENT_BLOCKLY, BlockyProgram
 
-logger = logging.getLogger("astrbot_plugin_blocky")
+try:
+    # AstrBot 只对「astrbot」命名空间的 logger 配置了 handler/界面输出，
+    # 独立 logger 的 INFO 会被丢弃，因此优先复用 AstrBot 的主 logger。
+    from astrbot.core import logger
+except ImportError:  # 测试环境（未安装 AstrBot）
+    logger = logging.getLogger("astrbot_plugin_blocky")
 
 # OneBot notice 事件类型映射到本插件的事件类型
 NOTICE_KINDS = {
