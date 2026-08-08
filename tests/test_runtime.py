@@ -3,14 +3,38 @@
 import asyncio
 
 from blocky.program import BlockyProgram
+from blocky.runtime import _assert_safe_source, wrap_code
 from blocky.runtime import simulate_program as run_sim
-from blocky.runtime import wrap_code
 
 
 def test_wrap_code_builds_async_function():
     source = wrap_code("await _blk.reply('hi')")
     assert "async def _blk_run(event, ctx, _blk):" in source
     assert "await _blk.reply('hi')" in source
+
+
+def test_wrap_code_accepts_nested_blocks():
+    """顶层代码无缩进、内部带 Blockly 缩进的代码包装后必须可编译。
+
+    回归：事件块生成器若给顶层代码整体加缩进，包装成函数体会触发
+    unexpected indent / unindent 语法错误。
+    """
+    code = (
+        "if _blk.get_message() == '你好':\n"
+        "  await _blk.return_msg('hello')\n"
+        "else:\n"
+        "  await _blk.return_msg('other')\n"
+    )
+    source = wrap_code(code)
+    _assert_safe_source(source)
+    compile(source, "<test>", "exec")
+
+
+def test_wrap_code_accepts_multiple_statements():
+    code = "await _blk.reply('a')\nawait _blk.reply('b')\n"
+    source = wrap_code(code)
+    _assert_safe_source(source)
+    compile(source, "<test>", "exec")
 
 
 def test_reply_continues():
