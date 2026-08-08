@@ -14,7 +14,16 @@ const IMG_DELETE =
 const IMG_CHECK =
   "data:image/png;base64,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";
 
+// 「启用」开关启用后显示的图标（运行时切换 src，同样用 data URI 避免 401）。
+const IMG_CHECK_OK =
+  "data:image/png;base64,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";
+
 let bridge = window.AstrBotPluginPage;
+// 工具栏「启用」开关图标：运行时按启用状态切换（data URI，避免 401）。
+const toolbarCheckImg = $("enabledCheck").nextElementSibling;
+function syncToolbarCheckIcon() {
+  toolbarCheckImg.src = $("enabledCheck").checked ? IMG_CHECK_OK : IMG_CHECK;
+}
 let workspace = null;
 let currentId = null;
 let currentMode = "blockly"; // blockly | python
@@ -549,14 +558,15 @@ function renderSidebar() {
     const toggleInput = document.createElement("input");
     toggleInput.type = "checkbox";
     toggleInput.checked = !!p.enabled;
-    toggleInput.onclick = (e) => {
-      e.stopPropagation();
-      toggleProgram(p.id, toggleInput.checked);
-    };
     const toggleImg = document.createElement("img");
     toggleImg.className = "toggle-check";
-    toggleImg.src = IMG_CHECK;
+    toggleImg.src = toggleInput.checked ? IMG_CHECK_OK : IMG_CHECK;
     toggleImg.alt = "启用";
+    toggleInput.onclick = (e) => {
+      e.stopPropagation();
+      toggleImg.src = toggleInput.checked ? IMG_CHECK_OK : IMG_CHECK;
+      toggleProgram(p.id, toggleInput.checked);
+    };
     toggle.appendChild(toggleInput);
     toggle.appendChild(toggleImg);
 
@@ -617,6 +627,7 @@ function loadProgram(p) {
   $("descriptionInput").value = p.description || "";
   $("ctypeBadge").textContent = ctypeLabel(p.content_type);
   $("enabledCheck").checked = !!p.enabled;
+  syncToolbarCheckIcon();
   $("priorityInput").value = p.priority || 0;
   $("timeoutInput").value = p.timeout || 30;
   const trigType = p.trigger && p.trigger.type ? p.trigger.type : "all";
@@ -753,6 +764,7 @@ function clearEditor() {
   $("nameInput").value = "";
   $("descriptionInput").value = "";
   $("enabledCheck").checked = false;
+  syncToolbarCheckIcon();
   $("priorityInput").value = 0;
   $("timeoutInput").value = 30;
   $("triggerType").value = "all";
@@ -818,7 +830,10 @@ async function toggleProgram(id, enabled) {
     const res = await apiPost("programs/" + id + "/toggle", { enabled });
     const idx = programs.findIndex((p) => p.id === id);
     if (idx >= 0) programs[idx].enabled = res.enabled;
-    if (currentId === id) $("enabledCheck").checked = !!res.enabled;
+    if (currentId === id) {
+      $("enabledCheck").checked = !!res.enabled;
+      syncToolbarCheckIcon();
+    }
     renderSidebar();
   } catch (err) {
     showToast(err.message || "开关切换失败", true);
@@ -1027,6 +1042,9 @@ function bindEvents() {
   };
 
   $("triggerType").onchange = updateTriggerValueState;
+
+  $("enabledCheck").addEventListener("change", syncToolbarCheckIcon);
+  syncToolbarCheckIcon();
 
   const bindDirty = (id) => {
     const el = $(id);
