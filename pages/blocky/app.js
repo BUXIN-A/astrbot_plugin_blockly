@@ -821,11 +821,19 @@ const TRASHCAN_KEY = "blocky_trashcan";
 let trashcanToggleBtn = null; // 工具箱底部追加的「收纳盒开关」HTML 按钮
 
 function trashcanVisible() {
-  return localStorage.getItem(TRASHCAN_KEY) !== "off";
+  try {
+    return localStorage.getItem(TRASHCAN_KEY) !== "off";
+  } catch {
+    return true;
+  }
 }
 
 function setTrashcanVisible(on) {
-  localStorage.setItem(TRASHCAN_KEY, on ? "on" : "off");
+  try {
+    localStorage.setItem(TRASHCAN_KEY, on ? "on" : "off");
+  } catch {
+    // 插件页运行在沙箱 iframe 中且无 allow-same-origin，localStorage 不可用，静默降级
+  }
   if (workspace && workspace.trashcan && workspace.trashcan.svgGroup) {
     workspace.trashcan.svgGroup.style.display = on ? "" : "none";
   }
