@@ -495,10 +495,10 @@ class BlockyPlugin(Star):
     async def _import_data(self, body: Any) -> Any:
         """解析并导入导出数据。
 
-        名称相同但 id 不同的现有程序会被视为"同名冲突"：
+        与现有程序名称相同（不区分大小写）的导入条目一律视为"同名冲突"：
         - 未提供 ``on_conflict`` 策略时，返回冲突列表由前端二次确认；
         - 提供策略 ``overwrite`` 时，用导入内容覆盖已有同名程序；
-        - 策略 ``rename`` 时，为导入条目追加序号命名并新建。
+        - 策略 ``rename`` 时，为导入条目更换 id、追加序号命名并新建。
         """
         programs_data = body.get("programs") if isinstance(body, dict) else body
         if not isinstance(programs_data, list) or not programs_data:
@@ -523,10 +523,7 @@ class BlockyPlugin(Star):
                 "id": str(item.get("id") or ""),
             }
             for item in items
-            if str(item.get("name") or "").strip().lower()
-            in existing_by_name
-            and existing_by_name[str(item.get("name") or "").strip().lower()].id
-            != str(item.get("id") or "")
+            if str(item.get("name") or "").strip().lower() in existing_by_name
         ]
         if conflicts and not on_conflict:
             return json_response(
@@ -545,14 +542,17 @@ class BlockyPlugin(Star):
                 program.name = "未命名程序"
             name_key = program.name.strip().lower()
             existing = name_map.get(name_key)
-            if existing is not None and existing.id != program.id:
+            if existing is not None:
                 strategy = on_conflict.get(name_key, "rename") or "rename"
                 if strategy == "overwrite":
                     program.id = existing.id
                     program.name = existing.name
                 else:
                     program.id = new_id()
-                    program.name = self.manager.unique_name(program.name)
+                    program.name = self.manager.unique_name(
+                        program.name,
+                        {p.name for p in name_map.values()},
+                    )
             program.updated_at = time.time()
             name_map[program.name.strip().lower()] = program
             await self.manager.update(program)

@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 
 from .program import BlockyProgram, new_id
@@ -62,10 +63,12 @@ class BlockyManager:
         return programs
 
     # ---------- 增删改 ----------
-    def unique_name(self, name: str) -> str:
-        """若名称已存在，则追加序号（如「xx (2)」）以避免重名。"""
+
+    def unique_name(self, name: str, used_names: Iterable[str] = ()) -> str:
+        """若名称已存在（磁盘或同批已分配），则追加序号（如「xx (2)」）以避免重名。"""
         name = (name or "").strip() or "未命名程序"
         used = {p.name for p in self._programs.values()}
+        used.update(used_names)
         if name not in used:
             return name
         i = 2
