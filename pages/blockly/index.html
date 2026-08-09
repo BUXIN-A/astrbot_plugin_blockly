@@ -58,6 +58,7 @@
             <span>重置</span>
           </button>
           <button class="btn btn-primary" id="saveBtn">保存</button>
+          <button class="btn" id="exportCurrentBtn" title="导出当前程序">导出</button>
           <button class="btn" id="testBtn">测试运行</button>
         </div>
       </header>
@@ -113,10 +114,10 @@
   <div class="modal-overlay hidden" id="importModal">
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modal-title">导入确认</div>
-      <div class="modal-message">将导入 <span id="importCount">0</span> 个程序。导入后默认不启用，可设置程序命名：</div>
+      <div class="modal-message">将导入 <span id="importCount">0</span> 个程序。导入后默认不启用，需设置程序命名：</div>
       <div class="form-row">
-        <label for="importName">程序命名（留空则使用程序原名）</label>
-        <input class="input" id="importName" placeholder="留空则使用原名" />
+        <label for="importName">程序命名（必填，不能与已有程序同名）</label>
+        <input class="input" id="importName" placeholder="输入程序命名" />
         <div class="form-hint" id="importNameHint"></div>
       </div>
       <div class="modal-actions">

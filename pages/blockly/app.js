@@ -973,10 +973,12 @@ function patchTrashcanSprites() {
 
 function disableTrashcanClick() {
   // 块拖入垃圾桶后即视为删除；点击垃圾桶不应再打开 flyout 恢复被删块。
-  // 覆盖 trashcan.click 为空实现，同时确保其 flyout 保持关闭。
+  // 核心是覆盖 openFlyout（真正打开面板的方法），同时覆盖 click 点击入口，
+  // 确保任何交互路径都无法弹出恢复面板。
   if (!workspace || !workspace.trashcan) return;
   const tc = workspace.trashcan;
   tc.click = () => {};
+  tc.openFlyout = () => {};
   if (tc.flyout && typeof tc.flyout.hide === "function") {
     tc.flyout.hide();
   }
@@ -1151,6 +1153,7 @@ function enableEditor() {
     "triggerValue",
     "openModelsBtn",
     "saveBtn",
+    "exportCurrentBtn",
     "testBtn",
     "resetBtn",
   ].forEach((id) => {
@@ -1370,6 +1373,7 @@ function clearEditor() {
     "triggerValue",
     "openModelsBtn",
     "saveBtn",
+    "exportCurrentBtn",
     "testBtn",
     "resetBtn",
   ].forEach((id) => {
@@ -1522,11 +1526,7 @@ function openImportDialog(count) {
   $("importCount").textContent = count;
   $("importName").value = "";
   $("importNameHint").textContent = "";
-  if (count === 1) {
-    $("importName").placeholder = "留空则使用程序原名";
-  } else {
-    $("importName").placeholder = "留空则使用各自原名";
-  }
+  $("importOk").disabled = true;
   openModal("importModal");
   setTimeout(() => $("importName").focus(), 50);
   return new Promise((resolve) => {
@@ -1542,9 +1542,29 @@ function bindImportModal() {
       importResolve = null;
     }
   };
+  const validateName = () => {
+    const name = $("importName").value.trim();
+    const exists = programs.some(
+      (p) => p.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (!name) {
+      $("importNameHint").textContent = "请输入程序命名";
+      $("importOk").disabled = true;
+      return;
+    }
+    if (exists) {
+      $("importNameHint").textContent = "该名称已存在，请更换命名";
+      $("importOk").disabled = true;
+      return;
+    }
+    $("importNameHint").textContent = "";
+    $("importOk").disabled = false;
+  };
+  $("importName").addEventListener("input", validateName);
   $("importOk").onclick = () => {
     const name = $("importName").value.trim();
-    close(name || null);
+    if (!name) return;
+    close(name);
   };
   $("importCancel").onclick = () => close(null);
   $("importModal").addEventListener("click", (e) => {
@@ -2000,6 +2020,7 @@ function updateTriggerValueState() {
 function bindEvents() {
   $("newBtn").onclick = newProgram;
   $("saveBtn").onclick = () => saveProgram(false);
+  $("exportCurrentBtn").onclick = exportCurrent;
   $("testBtn").onclick = openTestDialog;
   $("refreshBtn").onclick = refreshPrograms;
   $("resetBtn").onclick = () => {

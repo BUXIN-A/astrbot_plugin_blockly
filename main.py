@@ -538,8 +538,8 @@ class BlocklyPlugin(Star):
     async def api_import(self) -> Any:
         """从 JSON 导入程序（body 为导出格式或程序对象列表）。
 
-        ``body.name``（可选）为统一命名，导入条目总是分配新 id 且默认不启用，
-        不会覆盖任何已有程序。
+        ``body.name`` 为必填的统一命名；导入条目总是分配新 id 且默认不启用，
+        不会覆盖任何已有程序。名称与已有程序冲突时返回错误。
         """
         body = await request.json(default={})
         return await self._import_data(body)
@@ -560,12 +560,11 @@ class BlocklyPlugin(Star):
     def _export_data(self, programs: list[BlocklyProgram]) -> dict:
         """构造导出的 JSON 结构。
 
-        导出仅包含可移植的内容字段，剔除 id / enabled / 运行时统计等内部信息，
-        避免导入时因 id 相同、名称不同而意外覆盖已有程序。
+        导出仅包含可移植的内容字段，剔除 id / enabled / name / 运行时统计等
+        内部信息：名称由导入时自行设置，避免覆盖与命名冲突。
         """
-        # 导出字段白名单：仅携带内容相关的可移植字段
+        # 导出字段白名单：仅携带内容相关的可移植字段（不含 name）
         export_fields = (
-            "name",
             "description",
             "content_type",
             "workspace",
@@ -602,10 +601,9 @@ class BlocklyPlugin(Star):
     async def _import_data(self, body: Any) -> Any:
         """解析并导入导出数据。
 
-        导入总是以全新程序接入：每个条目分配新的随机 id、默认不启用，
-        因此不会覆盖任何已有程序（无论同名还是同 id）。
-        ``body.name``（可选）为统一命名：提供时所有导入程序使用该名称
-        （重名自动追加序号），否则沿用导出文件中的原名（重名同样追加序号）。
+        导入总是以全新程序接入：每个条目分配新的随机 id、默认不启用，因此不会
+        覆盖任何已有程序。``body.name`` 为必填的统一命名，所有导入程序使用该
+        名称；若该名称与已有程序相同，则返回错误拒绝导入。
         """
         programs_data = body.get("programs") if isinstance(body, dict) else body
         if not isinstance(programs_data, list) or not programs_data:
@@ -615,25 +613,22 @@ class BlocklyPlugin(Star):
             return error_response("导入数据格式不正确", status_code=400)
 
         import_name = (
-            str(body.get("name") or "").strip()
-            if isinstance(body, dict)
-            else ""
+            str(body.get("name") or "").strip() if isinstance(body, dict) else ""
         )
+        if not import_name:
+            return error_response("请设置导入程序的命名", status_code=400)
+
+        existing_names = {p.name for p in self.manager.list_programs()}
+        if import_name in existing_names:
+            return error_response(f"程序「{import_name}」已存在，请更换命名", status_code=400)
 
         count = 0
-        used_names = {p.name for p in self.manager.list_programs()}
         for item in items:
             program = BlocklyProgram.from_dict(item)
             program.id = new_id()
+            program.name = import_name
             program.enabled = False
             program.created_at = program.updated_at = time.time()
-            if import_name:
-                program.name = self.manager.unique_name(import_name, used_names)
-            else:
-                if not str(program.name or "").strip():
-                    program.name = "未命名程序"
-                program.name = self.manager.unique_name(program.name, used_names)
-            used_names.add(program.name)
             await self.manager.update(program)
             count += 1
         return json_response({"ok": True, "imported": count})

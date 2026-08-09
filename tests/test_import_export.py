@@ -107,10 +107,11 @@ def test_export_strips_internal_fields(tmp_path):
         code="await _blk.reply('hi')",
     )
     data = plugin._export_data([program])
-    assert data["programs"][0]["name"] == "测试程序"
-    assert data["programs"][0]["workspace"] is not None
-    # 内部字段不应导出
     exported = data["programs"][0]
+    assert exported["workspace"] is not None
+    # name 不应导出（导入时自行设置）
+    assert "name" not in exported
+    # 内部字段不应导出
     assert "id" not in exported
     assert "enabled" not in exported
     assert "created_at" not in exported
@@ -118,6 +119,23 @@ def test_export_strips_internal_fields(tmp_path):
     assert "last_run_at" not in exported
     assert "run_count" not in exported
     assert "last_error" not in exported
+
+
+def test_import_requires_name(tmp_path):
+    plugin = _make_plugin(tmp_path)
+    body = {
+        "programs": [
+            {
+                "content_type": "blockly",
+                "workspace": '{"blocks": {}}',
+                "code": "",
+            }
+        ]
+    }
+    res = asyncio.run(plugin._import_data(body))
+    # 缺少 name 应被拒绝（error_response stub 返回 None），不导入任何条目
+    assert res is None
+    assert plugin.manager.list_programs() == []
 
 
 def test_import_assigns_new_id_and_disables(tmp_path):
@@ -129,10 +147,11 @@ def test_import_assigns_new_id_and_disables(tmp_path):
     existing_id = existing.id
 
     body = {
+        "name": "导入程序",
         "programs": [
             {
                 "id": "some-old-id",
-                "name": "导入程序",
+                "name": "原导入名",
                 "enabled": True,
                 "content_type": "blockly",
                 "workspace": '{"blocks": {}}',
@@ -144,7 +163,7 @@ def test_import_assigns_new_id_and_disables(tmp_path):
                 "priority": 0,
                 "timeout": 30,
             }
-        ]
+        ],
     }
     res = asyncio.run(plugin._import_data(body))
 
@@ -154,6 +173,8 @@ def test_import_assigns_new_id_and_disables(tmp_path):
     assert res["imported"] == 1
     # 新 id，且不等于原 id
     assert new_program.id != "some-old-id"
+    # 使用统一命名，而非导出文件中的原名
+    assert new_program.name == "导入程序"
     # 默认不启用
     assert new_program.enabled is False
     # 已有程序未被覆盖
@@ -161,19 +182,14 @@ def test_import_assigns_new_id_and_disables(tmp_path):
     assert plugin.manager.get(existing_id).name == "已有程序"
 
 
-def test_import_uniform_name(tmp_path):
+def test_import_rejects_name_conflict(tmp_path):
     plugin = _make_plugin(tmp_path)
-    asyncio.run(plugin.manager.create(name="统一名"))
+    asyncio.run(plugin.manager.create(name="同名"))
     body = {
-        "name": "统一名",
-        "programs": [
-            {"name": "原A", "content_type": "blockly"},
-            {"name": "原B", "content_type": "blockly"},
-        ],
+        "name": "同名",
+        "programs": [{"content_type": "blockly"}],
     }
     res = asyncio.run(plugin._import_data(body))
-    assert res["imported"] == 2
-    names = {p.name for p in plugin.manager.list_programs()}
-    assert "统一名" in names
-    assert "统一名 (2)" in names
-    assert "统一名 (3)" in names
+    # 与已有程序同名应拒绝（error_response stub 返回 None），不导入任何条目
+    assert res is None
+    assert len(plugin.manager.list_programs()) == 1
