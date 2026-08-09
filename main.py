@@ -538,8 +538,9 @@ class BlocklyPlugin(Star):
     async def api_import(self) -> Any:
         """从 JSON 导入程序（body 为导出格式或程序对象列表）。
 
-        ``body.name`` 为必填的统一命名；导入条目总是分配新 id 且默认不启用，
-        不会覆盖任何已有程序。名称与已有程序冲突时返回错误。
+        命名由前端在每个条目上通过 ``import_name`` 字段提供：每个导入程序可独立
+        命名，互不重复且不与已有程序同名。导入条目总是分配新 id 且默认不启用，
+        不会覆盖任何已有程序。
         """
         body = await request.json(default={})
         return await self._import_data(body)
@@ -602,8 +603,8 @@ class BlocklyPlugin(Star):
         """解析并导入导出数据。
 
         导入总是以全新程序接入：每个条目分配新的随机 id、默认不启用，因此不会
-        覆盖任何已有程序。``body.name`` 为必填的统一命名，所有导入程序使用该
-        名称；若该名称与已有程序相同，则返回错误拒绝导入。
+        覆盖任何已有程序。命名由前端在每个条目上通过 ``import_name`` 字段提供，
+        且各条目命名彼此不重复、不与已有程序同名；缺失或冲突时返回错误拒绝导入。
         """
         programs_data = body.get("programs") if isinstance(body, dict) else body
         if not isinstance(programs_data, list) or not programs_data:
@@ -612,21 +613,30 @@ class BlocklyPlugin(Star):
         if not items:
             return error_response("导入数据格式不正确", status_code=400)
 
-        import_name = (
-            str(body.get("name") or "").strip() if isinstance(body, dict) else ""
-        )
-        if not import_name:
-            return error_response("请设置导入程序的命名", status_code=400)
+        # 收集前端提供的每个条目的命名，缺失或非法则拒绝
+        names: list[str] = []
+        for item in items:
+            name = str(item.get("import_name") or "").strip()
+            if not name:
+                return error_response("请为每个导入程序设置命名", status_code=400)
+            names.append(name)
 
         existing_names = {p.name for p in self.manager.list_programs()}
-        if import_name in existing_names:
-            return error_response(f"程序「{import_name}」已存在，请更换命名", status_code=400)
+        # 与已有程序同名
+        for name in names:
+            if name in existing_names:
+                return error_response(
+                    f"程序「{name}」已存在，请更换命名", status_code=400
+                )
+        # 导入条目之间重名
+        if len(set(names)) != len(names):
+            return error_response("导入的程序命名不能重复", status_code=400)
 
         count = 0
-        for item in items:
+        for item, name in zip(items, names):
             program = BlocklyProgram.from_dict(item)
             program.id = new_id()
-            program.name = import_name
+            program.name = name
             program.enabled = False
             program.created_at = program.updated_at = time.time()
             await self.manager.update(program)

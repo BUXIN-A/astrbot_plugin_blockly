@@ -1218,11 +1218,19 @@ function applyEditorMode(mode) {
   $("codeEditor").classList.toggle("hidden", currentMode !== "python");
   $("ctypeBadge").textContent = currentMode === "python" ? "代码" : "积木";
   if (currentMode === "blockly") {
-    if (currentWorkspaceState) {
-      Blockly.serialization.workspaces.load(currentWorkspaceState, workspace);
-    } else {
-      workspace.clear();
-      Blockly.serialization.workspaces.load(defaultWorkspaceState(), workspace);
+    // Blockly 的序列化加载事件是异步派发的（经 requestAnimationFrame / setTimeout），
+    // 若仅靠 loading 标志抑制，事件会在 loading 置回 false 后才触发，导致 dirty 被误置、
+    // 无任何修改切换程序时也误弹"未保存"提示。故加载期间整体禁用事件派发。
+    Blockly.Events.disable();
+    try {
+      if (currentWorkspaceState) {
+        Blockly.serialization.workspaces.load(currentWorkspaceState, workspace);
+      } else {
+        workspace.clear();
+        Blockly.serialization.workspaces.load(defaultWorkspaceState(), workspace);
+      }
+    } finally {
+      Blockly.Events.enable();
     }
   }
 }
@@ -1522,13 +1530,32 @@ function exportCurrent() {
 
 let importResolve = null;
 
-function openImportDialog(count) {
-  $("importCount").textContent = count;
-  $("importName").value = "";
+function openImportDialog(programsData) {
+  $("importCount").textContent = programsData.length;
   $("importNameHint").textContent = "";
   $("importOk").disabled = true;
+  // 为每个导入程序生成一个命名输入框
+  const list = $("importNames");
+  list.innerHTML = "";
+  programsData.forEach((_, i) => {
+    const row = document.createElement("div");
+    row.className = "import-name-row";
+    const idx = document.createElement("span");
+    idx.className = "idx";
+    idx.textContent = i + 1;
+    const input = document.createElement("input");
+    input.className = "input";
+    input.type = "text";
+    input.placeholder = `程序 ${i + 1} 的命名`;
+    input.dataset.index = i;
+    row.append(idx, input);
+    list.appendChild(row);
+  });
   openModal("importModal");
-  setTimeout(() => $("importName").focus(), 50);
+  setTimeout(() => {
+    const first = list.querySelector("input");
+    if (first) first.focus();
+  }, 50);
   return new Promise((resolve) => {
     importResolve = resolve;
   });
@@ -1542,29 +1569,33 @@ function bindImportModal() {
       importResolve = null;
     }
   };
-  const validateName = () => {
-    const name = $("importName").value.trim();
-    const exists = programs.some(
-      (p) => p.name.trim().toLowerCase() === name.toLowerCase(),
+  const validate = () => {
+    const inputs = Array.from(
+      $("importNames").querySelectorAll("input"),
     );
-    if (!name) {
-      $("importNameHint").textContent = "请输入程序命名";
-      $("importOk").disabled = true;
-      return;
+    const names = inputs.map((n) => n.value.trim());
+    const lower = names.map((n) => n.toLowerCase());
+    const existingLower = programs.map((p) => p.name.trim().toLowerCase());
+    let hint = "";
+    // 空值检查
+    if (names.some((n) => !n)) {
+      hint = "请为每个程序输入命名";
+    } else if (new Set(lower).size !== lower.length) {
+      hint = "导入的程序命名不能重复";
+    } else if (names.some((n) => existingLower.includes(n.toLowerCase()))) {
+      hint = "存在与已有程序同名的命名，请更换";
     }
-    if (exists) {
-      $("importNameHint").textContent = "该名称已存在，请更换命名";
-      $("importOk").disabled = true;
-      return;
-    }
-    $("importNameHint").textContent = "";
-    $("importOk").disabled = false;
+    $("importNameHint").textContent = hint;
+    $("importOk").disabled = !!hint;
   };
-  $("importName").addEventListener("input", validateName);
+  $("importNames").addEventListener("input", validate);
   $("importOk").onclick = () => {
-    const name = $("importName").value.trim();
-    if (!name) return;
-    close(name);
+    const inputs = Array.from(
+      $("importNames").querySelectorAll("input"),
+    );
+    const names = inputs.map((n) => n.value.trim());
+    if (names.some((n) => !n)) return;
+    close(names);
   };
   $("importCancel").onclick = () => close(null);
   $("importModal").addEventListener("click", (e) => {
@@ -1572,7 +1603,7 @@ function bindImportModal() {
   });
 }
 
-async function importData(rawData, importName) {
+async function importData(rawData, names) {
   let programsData;
   if (Array.isArray(rawData)) {
     programsData = rawData;
@@ -1583,11 +1614,14 @@ async function importData(rawData, importName) {
     showToast("导入数据格式不正确", true);
     return;
   }
-  const body = { programs: programsData };
-  if (importName) body.name = importName;
+  // 将每个命名写入对应条目
+  const payload = programsData.map((item, i) => ({
+    ...item,
+    import_name: names[i] || "",
+  }));
   let res;
   try {
-    res = await apiPost("import", body);
+    res = await apiPost("import", { programs: payload });
   } catch (err) {
     showToast(err.message || "导入失败", true);
     return;
@@ -1640,9 +1674,9 @@ async function importFromFile(file) {
     showToast("导入数据格式不正确", true);
     return;
   }
-  const importName = await openImportDialog(count);
-  if (importName === null) return; // 取消了
-  await importData(data, importName);
+  const names = await openImportDialog(programsData);
+  if (names === null) return; // 取消了
+  await importData(data, names);
 }
 
 /* ---------- 可用模型白名单（提供商 ID + 模型 ID） ---------- */

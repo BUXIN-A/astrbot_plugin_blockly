@@ -133,7 +133,7 @@ def test_import_requires_name(tmp_path):
         ]
     }
     res = asyncio.run(plugin._import_data(body))
-    # 缺少 name 应被拒绝（error_response stub 返回 None），不导入任何条目
+    # 缺少 import_name 应被拒绝（error_response stub 返回 None），不导入任何条目
     assert res is None
     assert plugin.manager.list_programs() == []
 
@@ -147,11 +147,11 @@ def test_import_assigns_new_id_and_disables(tmp_path):
     existing_id = existing.id
 
     body = {
-        "name": "导入程序",
         "programs": [
             {
                 "id": "some-old-id",
                 "name": "原导入名",
+                "import_name": "导入程序",
                 "enabled": True,
                 "content_type": "blockly",
                 "workspace": '{"blocks": {}}',
@@ -173,7 +173,7 @@ def test_import_assigns_new_id_and_disables(tmp_path):
     assert res["imported"] == 1
     # 新 id，且不等于原 id
     assert new_program.id != "some-old-id"
-    # 使用统一命名，而非导出文件中的原名
+    # 使用 import_name 命名，而非导出文件中的原名
     assert new_program.name == "导入程序"
     # 默认不启用
     assert new_program.enabled is False
@@ -186,10 +186,40 @@ def test_import_rejects_name_conflict(tmp_path):
     plugin = _make_plugin(tmp_path)
     asyncio.run(plugin.manager.create(name="同名"))
     body = {
-        "name": "同名",
-        "programs": [{"content_type": "blockly"}],
+        "programs": [
+            {"import_name": "同名", "content_type": "blockly"},
+        ]
     }
     res = asyncio.run(plugin._import_data(body))
     # 与已有程序同名应拒绝（error_response stub 返回 None），不导入任何条目
     assert res is None
     assert len(plugin.manager.list_programs()) == 1
+
+
+def test_import_multiple_programs_separate_names(tmp_path):
+    plugin = _make_plugin(tmp_path)
+    body = {
+        "programs": [
+            {"import_name": "程序甲", "content_type": "blockly"},
+            {"import_name": "程序乙", "content_type": "blockly"},
+        ]
+    }
+    res = asyncio.run(plugin._import_data(body))
+    assert res["ok"] is True
+    assert res["imported"] == 2
+    names = {p.name for p in plugin.manager.list_programs()}
+    assert names == {"程序甲", "程序乙"}
+
+
+def test_import_rejects_duplicate_names(tmp_path):
+    plugin = _make_plugin(tmp_path)
+    body = {
+        "programs": [
+            {"import_name": "重名", "content_type": "blockly"},
+            {"import_name": "重名", "content_type": "blockly"},
+        ]
+    }
+    res = asyncio.run(plugin._import_data(body))
+    # 导入条目之间重名应拒绝
+    assert res is None
+    assert plugin.manager.list_programs() == []

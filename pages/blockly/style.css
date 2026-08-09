@@ -922,7 +922,7 @@ html[data-theme="dark"] .blocklyScrollbarBackground {
   max-width: 92vw;
 }
 
-.import-conflicts {
+.import-names {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -930,23 +930,27 @@ html[data-theme="dark"] .blocklyScrollbarBackground {
   overflow-y: auto;
 }
 
-.import-conflict-row {
+.import-name-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 10px;
+  gap: 10px;
 }
 
-.import-conflict-row .name {
-  font-weight: 600;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.import-name-row .idx {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.import-name-row .input {
+  flex: 1;
 }
 
 .btn-danger {

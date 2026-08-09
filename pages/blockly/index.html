@@ -112,14 +112,11 @@
 
   <!-- 导入确认弹窗 -->
   <div class="modal-overlay hidden" id="importModal">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal import-wide" role="dialog" aria-modal="true">
       <div class="modal-title">导入确认</div>
-      <div class="modal-message">将导入 <span id="importCount">0</span> 个程序。导入后默认不启用，需设置程序命名：</div>
-      <div class="form-row">
-        <label for="importName">程序命名（必填，不能与已有程序同名）</label>
-        <input class="input" id="importName" placeholder="输入程序命名" />
-        <div class="form-hint" id="importNameHint"></div>
-      </div>
+      <div class="modal-message">将导入 <span id="importCount">0</span> 个程序。导入后默认不启用，请为每个程序设置命名：</div>
+      <div class="import-names" id="importNames"></div>
+      <div class="form-hint" id="importNameHint"></div>
       <div class="modal-actions">
         <button class="btn" id="importCancel">取消</button>
         <button class="btn btn-primary" id="importOk">确认导入</button>
