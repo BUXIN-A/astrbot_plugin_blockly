@@ -22,7 +22,7 @@ desc: |
   - 「收纳盒」开关：工具箱底部常驻「隐藏/显示收纳盒」按钮，可随时在画布隐藏删除区域（避免拖拽误删）。
   - 工作区/积木右键「注释」功能：空白处右键新建黄色便签注释，积木上右键添加/删除注释。
   - 支持 WebUI 一键"测试运行"（独立弹窗），无需真实消息即可验证。
-version: v0.6.1
+version: v0.6.2
 author: BUXIN-A
 repo: https://github.com/BUXIN-A/astrbot_plugin_blockly
 support_platforms:

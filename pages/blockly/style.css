@@ -286,9 +286,20 @@ body {
   flex: 1;
 }
 
-.desc-input {
+.desc-input-btn {
   min-width: 160px;
   flex: 1;
+  justify-content: flex-start;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.desc-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 120px;
 }
 
 .number {

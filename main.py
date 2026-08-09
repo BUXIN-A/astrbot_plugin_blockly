@@ -538,10 +538,8 @@ class BlocklyPlugin(Star):
     async def api_import(self) -> Any:
         """从 JSON 导入程序（body 为导出格式或程序对象列表）。
 
-        ``body.on_conflict``（可选）为同名冲突处理策略映射：
-        ``{程序名(不区分大小写): "overwrite" | "rename"}``。
-        未提供该参数且检测到同名冲突时，返回 ``{"ok": false, "code":
-        "NAME_CONFLICT", "conflicts": [{"name", "id"}]}`` 供前端二次确认。
+        ``body.name``（可选）为统一命名，导入条目总是分配新 id 且默认不启用，
+        不会覆盖任何已有程序。
         """
         body = await request.json(default={})
         return await self._import_data(body)
@@ -560,12 +558,32 @@ class BlocklyPlugin(Star):
         return await self._import_data(body)
 
     def _export_data(self, programs: list[BlocklyProgram]) -> dict:
-        """构造导出的 JSON 结构。"""
+        """构造导出的 JSON 结构。
+
+        导出仅包含可移植的内容字段，剔除 id / enabled / 运行时统计等内部信息，
+        避免导入时因 id 相同、名称不同而意外覆盖已有程序。
+        """
+        # 导出字段白名单：仅携带内容相关的可移植字段
+        export_fields = (
+            "name",
+            "description",
+            "content_type",
+            "workspace",
+            "code",
+            "trigger",
+            "event_type",
+            "event_attr",
+            "models",
+            "priority",
+            "timeout",
+        )
         return {
             "format": "astrbot_plugin_blockly",
             "version": 1,
             "exported_at": time.time(),
-            "programs": [p.to_dict() for p in programs],
+            "programs": [
+                {k: p.to_dict().get(k) for k in export_fields} for p in programs
+            ],
         }
 
     def _json_file_response(self, data: dict, filename: str) -> Any:
@@ -584,66 +602,38 @@ class BlocklyPlugin(Star):
     async def _import_data(self, body: Any) -> Any:
         """解析并导入导出数据。
 
-        与现有程序名称相同（不区分大小写）的导入条目一律视为"同名冲突"：
-        - 未提供 ``on_conflict`` 策略时，返回冲突列表由前端二次确认；
-        - 提供策略 ``overwrite`` 时，用导入内容覆盖已有同名程序；
-        - 策略 ``rename`` 时，为导入条目更换 id、追加序号命名并新建。
+        导入总是以全新程序接入：每个条目分配新的随机 id、默认不启用，
+        因此不会覆盖任何已有程序（无论同名还是同 id）。
+        ``body.name``（可选）为统一命名：提供时所有导入程序使用该名称
+        （重名自动追加序号），否则沿用导出文件中的原名（重名同样追加序号）。
         """
         programs_data = body.get("programs") if isinstance(body, dict) else body
         if not isinstance(programs_data, list) or not programs_data:
             return error_response("导入数据格式不正确", status_code=400)
-        on_conflict: dict[str, str] = {}
-        if isinstance(body, dict) and isinstance(body.get("on_conflict"), dict):
-            on_conflict = {
-                str(k).strip().lower(): str(v)
-                for k, v in body["on_conflict"].items()
-            }
         items = [i for i in programs_data if isinstance(i, dict)]
         if not items:
             return error_response("导入数据格式不正确", status_code=400)
 
-        existing_by_name: dict[str, BlocklyProgram] = {}
-        for p in self.manager.list_programs():
-            existing_by_name.setdefault(p.name.strip().lower(), p)
-
-        conflicts = [
-            {
-                "name": existing_by_name[str(item.get("name") or "").strip().lower()].name,
-                "id": str(item.get("id") or ""),
-            }
-            for item in items
-            if str(item.get("name") or "").strip().lower() in existing_by_name
-        ]
-        if conflicts and not on_conflict:
-            return json_response(
-                {
-                    "ok": False,
-                    "code": "NAME_CONFLICT",
-                    "conflicts": conflicts,
-                }
-            )
+        import_name = (
+            str(body.get("name") or "").strip()
+            if isinstance(body, dict)
+            else ""
+        )
 
         count = 0
-        name_map: dict[str, BlocklyProgram] = dict(existing_by_name)
+        used_names = {p.name for p in self.manager.list_programs()}
         for item in items:
             program = BlocklyProgram.from_dict(item)
-            if not str(program.name or "").strip():
-                program.name = "未命名程序"
-            name_key = program.name.strip().lower()
-            existing = name_map.get(name_key)
-            if existing is not None:
-                strategy = on_conflict.get(name_key, "rename") or "rename"
-                if strategy == "overwrite":
-                    program.id = existing.id
-                    program.name = existing.name
-                else:
-                    program.id = new_id()
-                    program.name = self.manager.unique_name(
-                        program.name,
-                        {p.name for p in name_map.values()},
-                    )
-            program.updated_at = time.time()
-            name_map[program.name.strip().lower()] = program
+            program.id = new_id()
+            program.enabled = False
+            program.created_at = program.updated_at = time.time()
+            if import_name:
+                program.name = self.manager.unique_name(import_name, used_names)
+            else:
+                if not str(program.name or "").strip():
+                    program.name = "未命名程序"
+                program.name = self.manager.unique_name(program.name, used_names)
+            used_names.add(program.name)
             await self.manager.update(program)
             count += 1
         return json_response({"ok": True, "imported": count})

@@ -85,7 +85,9 @@
             <span id="modelsSummary">不限制</span>
           </button>
         </div>
-        <input class="input desc-input" id="descriptionInput" placeholder="描述（可选）" />
+        <button type="button" class="btn btn-sm desc-input-btn" id="descriptionBtn" title="点击编辑程序描述">
+          <span id="descriptionSummary">描述</span>
+        </button>
       </div>
 
       <div class="editor-area">
@@ -107,17 +109,19 @@
     </div>
   </div>
 
-  <!-- 导入同名冲突确认弹窗 -->
+  <!-- 导入确认弹窗 -->
   <div class="modal-overlay hidden" id="importModal">
-    <div class="modal import-wide" role="dialog" aria-modal="true">
-      <div class="modal-title">导入同名确认</div>
-      <div class="modal-message">检测到以下程序名称已存在，请选择处理方式：</div>
-      <div class="import-conflicts" id="importConflicts"></div>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-title">导入确认</div>
+      <div class="modal-message">将导入 <span id="importCount">0</span> 个程序。导入后默认不启用，可设置程序命名：</div>
+      <div class="form-row">
+        <label for="importName">程序命名（留空则使用程序原名）</label>
+        <input class="input" id="importName" placeholder="留空则使用原名" />
+        <div class="form-hint" id="importNameHint"></div>
+      </div>
       <div class="modal-actions">
-        <button class="btn btn-ghost" id="importConflictAllRename">全部使用新命名</button>
-        <span style="flex: 1"></span>
-        <button class="btn" id="importConflictCancel">取消导入</button>
-        <button class="btn btn-primary" id="importConflictOk">确定导入</button>
+        <button class="btn" id="importCancel">取消</button>
+        <button class="btn btn-primary" id="importOk">确认导入</button>
       </div>
     </div>
   </div>
@@ -244,6 +248,18 @@
       <div class="modal-actions">
         <button class="btn" id="fmtCancel">取消</button>
         <button class="btn btn-primary" id="fmtOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 描述编辑弹窗 -->
+  <div class="modal-overlay hidden" id="descModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-title">程序描述</div>
+      <textarea class="input desc-textarea" id="descTextarea" rows="6" spellcheck="false" placeholder="输入程序描述，可多行"></textarea>
+      <div class="modal-actions">
+        <button class="btn" id="descCancel">取消</button>
+        <button class="btn btn-primary" id="descOk">确定</button>
       </div>
     </div>
   </div>

@@ -40,6 +40,7 @@ let workspace = null;
 let currentId = null;
 let currentMode = "blockly"; // blockly | python
 let currentWorkspaceState = null; // 最近一次保存/加载的积木状态
+let currentDescription = ""; // 当前程序描述（通过弹窗编辑）
 let programs = [];
 let selectedModels = []; // 当前表单中的「可用模型」白名单
 let availableModels = []; // 后端可用的模型列表
@@ -970,6 +971,17 @@ function patchTrashcanSprites() {
   }
 }
 
+function disableTrashcanClick() {
+  // 块拖入垃圾桶后即视为删除；点击垃圾桶不应再打开 flyout 恢复被删块。
+  // 覆盖 trashcan.click 为空实现，同时确保其 flyout 保持关闭。
+  if (!workspace || !workspace.trashcan) return;
+  const tc = workspace.trashcan;
+  tc.click = () => {};
+  if (tc.flyout && typeof tc.flyout.hide === "function") {
+    tc.flyout.hide();
+  }
+}
+
 function enableCommentMenu() {
   // 注册右键菜单的「新建注释」（工作区空白处）与「添加/删除注释」（块上）。
   // 公开 API：Blockly.ContextMenuItems.registerCommentOptions()
@@ -1002,6 +1014,8 @@ function initWorkspace(isDark) {
   addTrashcanToggle();
   patchTrashcanSprites();
   setTrashcanVisible(trashcanVisible());
+  // 禁用垃圾桶点击打开 flyout 恢复块：块拖入即视为删除，点击垃圾桶不应再弹出恢复面板。
+  disableTrashcanClick();
   // 工作区右键菜单「新建注释」：Blockly 默认只注册块上的注释菜单项
   // （blockComment），工作区空白处的「新建注释」需要显式注册。
   enableCommentMenu();
@@ -1129,7 +1143,7 @@ async function selectProgram(id) {
 function enableEditor() {
   [
     "nameInput",
-    "descriptionInput",
+    "descriptionBtn",
     "enabledCheck",
     "priorityInput",
     "timeoutInput",
@@ -1151,7 +1165,9 @@ async function loadProgram(p) {
   enableEditor();
 
   $("nameInput").value = p.name || "";
-  $("descriptionInput").value = p.description || "";
+  currentDescription = p.description || "";
+  $("descriptionSummary").textContent = currentDescription || "描述";
+  $("descriptionSummary").title = currentDescription || "";
   $("ctypeBadge").textContent = ctypeLabel(p.content_type);
   $("enabledCheck").checked = !!p.enabled;
   syncToolbarCheckIcon();
@@ -1268,7 +1284,7 @@ function collectForm() {
   }
   return {
     name: $("nameInput").value.trim() || "未命名程序",
-    description: $("descriptionInput").value.trim(),
+    description: currentDescription,
     content_type: currentMode === "blockly" ? "blockly" : "python",
     workspace: workspaceState ? JSON.stringify(workspaceState) : "",
     code: code,
@@ -1330,7 +1346,9 @@ function clearEditor() {
   workspace.clear();
   $("codeEditor").value = "";
   $("nameInput").value = "";
-  $("descriptionInput").value = "";
+  currentDescription = "";
+  $("descriptionSummary").textContent = "描述";
+  $("descriptionSummary").title = "";
   $("enabledCheck").checked = false;
   syncToolbarCheckIcon();
   $("priorityInput").value = 0;
@@ -1344,7 +1362,7 @@ function clearEditor() {
   $("testResult").classList.remove("err");
   [
     "nameInput",
-    "descriptionInput",
+    "descriptionBtn",
     "enabledCheck",
     "priorityInput",
     "timeoutInput",
@@ -1500,32 +1518,17 @@ function exportCurrent() {
 
 let importResolve = null;
 
-function openImportConflictDialog(conflicts) {
-  const list = $("importConflicts");
-  list.innerHTML = "";
-  const result = {};
-  for (const c of conflicts) {
-    const row = document.createElement("div");
-    row.className = "import-conflict-row";
-    const span = document.createElement("span");
-    span.className = "name";
-    span.textContent = c.name || "未命名程序";
-    span.title = c.name || "";
-    const sel = document.createElement("select");
-    sel.className = "select";
-    const optOverwrite = document.createElement("option");
-    optOverwrite.value = "overwrite";
-    optOverwrite.textContent = "覆盖已有的同名程序";
-    const optRename = document.createElement("option");
-    optRename.value = "rename";
-    optRename.textContent = "使用新命名";
-    optRename.selected = true;
-    sel.append(optOverwrite, optRename);
-    result[c.name || "未命名程序"] = sel.value;
-    row.append(span, sel);
-    list.appendChild(row);
+function openImportDialog(count) {
+  $("importCount").textContent = count;
+  $("importName").value = "";
+  $("importNameHint").textContent = "";
+  if (count === 1) {
+    $("importName").placeholder = "留空则使用程序原名";
+  } else {
+    $("importName").placeholder = "留空则使用各自原名";
   }
   openModal("importModal");
+  setTimeout(() => $("importName").focus(), 50);
   return new Promise((resolve) => {
     importResolve = resolve;
   });
@@ -1539,34 +1542,29 @@ function bindImportModal() {
       importResolve = null;
     }
   };
-  const collect = (forceRename) => {
-    const res = {};
-    document
-      .querySelectorAll("#importConflicts .import-conflict-row")
-      .forEach((row) => {
-        const name = row.querySelector(".name").textContent;
-        const select = row.querySelector("select");
-        if (forceRename) select.value = "rename";
-        res[name] = select.value;
-      });
-    close(res);
+  $("importOk").onclick = () => {
+    const name = $("importName").value.trim();
+    close(name || null);
   };
-  $("importConflictOk").onclick = () => collect(false);
-  $("importConflictCancel").onclick = () => close(null);
-  $("importConflictAllRename").onclick = () => collect(true);
+  $("importCancel").onclick = () => close(null);
   $("importModal").addEventListener("click", (e) => {
     if (e.target === $("importModal")) close(null);
   });
 }
 
-async function importData(rawData, onConflict) {
-  let body;
+async function importData(rawData, importName) {
+  let programsData;
   if (Array.isArray(rawData)) {
-    body = { programs: rawData };
+    programsData = rawData;
   } else {
-    body = Object.assign({}, rawData);
+    programsData = (rawData && rawData.programs) || [];
   }
-  if (onConflict) body.on_conflict = onConflict;
+  if (!programsData.length || !Array.isArray(programsData)) {
+    showToast("导入数据格式不正确", true);
+    return;
+  }
+  const body = { programs: programsData };
+  if (importName) body.name = importName;
   let res;
   try {
     res = await apiPost("import", body);
@@ -1574,27 +1572,57 @@ async function importData(rawData, onConflict) {
     showToast(err.message || "导入失败", true);
     return;
   }
-  if (res && res.code === "NAME_CONFLICT") {
-    const strategy = await openImportConflictDialog(res.conflicts || []);
-    if (!strategy) return;
-    return importData(rawData, strategy);
-  }
   showToast(`已导入 ${res.imported} 个程序`);
   await refreshPrograms();
+  // 导入后刷新编辑区：若当前有未保存改动先询问保存，再加载第一个程序。
+  await handlePostImportRefresh();
+}
+
+async function handlePostImportRefresh() {
+  if (dirty && currentId) {
+    const ok = await confirmDialog(
+      "当前程序有未保存的修改，是否先保存？",
+      { title: "导入完成", okText: "保存并刷新", danger: false },
+    );
+    if (ok) {
+      await saveProgram(true);
+    }
+  }
+  if (!programs.length) {
+    clearEditor();
+    return;
+  }
+  // 直接加载第一个程序的最新数据，强制刷新编辑区（而非 selectProgram 的 id 短路）。
+  try {
+    const res = await apiGet("programs/" + programs[0].id);
+    await loadProgram(res.program);
+  } catch (err) {
+    showToast(err.message || "加载程序失败", true);
+  }
 }
 
 async function importFromFile(file) {
   if (!file) return;
+  let data;
   try {
     const text = await file.text();
-    const data = JSON.parse(text);
-    await importData(data);
+    data = JSON.parse(text);
   } catch (err) {
     showToast(
       err.message || "导入失败，请确认文件为 Blockly 导出的 JSON",
       true,
     );
+    return;
   }
+  const programsData = Array.isArray(data) ? data : data && data.programs;
+  const count = Array.isArray(programsData) ? programsData.length : 0;
+  if (!count) {
+    showToast("导入数据格式不正确", true);
+    return;
+  }
+  const importName = await openImportDialog(count);
+  if (importName === null) return; // 取消了
+  await importData(data, importName);
 }
 
 /* ---------- 可用模型白名单（提供商 ID + 模型 ID） ---------- */
@@ -1938,6 +1966,29 @@ function markDirty() {
   if (!loading) dirty = true;
 }
 
+/* ---------- 描述编辑弹窗 ---------- */
+
+function openDescriptionDialog() {
+  $("descTextarea").value = currentDescription || "";
+  openModal("descModal");
+  setTimeout(() => $("descTextarea").focus(), 50);
+}
+
+function bindDescModal() {
+  $("descOk").onclick = () => {
+    const val = $("descTextarea").value;
+    currentDescription = val.trim();
+    $("descriptionSummary").textContent = currentDescription || "描述";
+    $("descriptionSummary").title = currentDescription;
+    closeModal("descModal");
+    markDirty();
+  };
+  $("descCancel").onclick = () => closeModal("descModal");
+  $("descModal").addEventListener("click", (e) => {
+    if (e.target === $("descModal")) closeModal("descModal");
+  });
+}
+
 /* ---------- 事件绑定 ---------- */
 
 function updateTriggerValueState() {
@@ -1992,7 +2043,6 @@ function bindEvents() {
   };
   [
     "nameInput",
-    "descriptionInput",
     "enabledCheck",
     "priorityInput",
     "timeoutInput",
@@ -2004,6 +2054,7 @@ function bindEvents() {
   $("testChat").addEventListener("input", markDirty);
 
   $("openModelsBtn").onclick = openModelsDialog;
+  $("descriptionBtn").onclick = openDescriptionDialog;
 
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {
@@ -2019,6 +2070,7 @@ function bindEvents() {
   bindTestModal();
   bindBlockModelModal();
   bindFmtModal();
+  bindDescModal();
 }
 
 /* ---------- 启动 ---------- */
