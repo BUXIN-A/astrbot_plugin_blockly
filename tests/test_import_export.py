@@ -57,8 +57,8 @@ if "astrbot" not in sys.modules:
     web_mod.file_response = lambda *a, **k: None
     web_mod.json_response = lambda data, *a, **k: data
 
-    # request 的 json/files 可配置，便于测试需要请求体的 API
-    REQUEST_STATE = {"json": None, "files": {}}
+    # request 的 json/files/query 可配置，便于测试需要请求体的 API
+    REQUEST_STATE = {"json": None, "files": {}, "query": {}}
 
     async def _req_json(default=None):
         return REQUEST_STATE["json"] if REQUEST_STATE["json"] is not None else default
@@ -66,9 +66,13 @@ if "astrbot" not in sys.modules:
     async def _req_files():
         return REQUEST_STATE["files"]
 
+    def _req_query_get(key, default=None):
+        return REQUEST_STATE["query"].get(key, default)
+
     web_mod.request = types.SimpleNamespace(
         json=staticmethod(_req_json),
         files=staticmethod(_req_files),
+        query=types.SimpleNamespace(get=staticmethod(_req_query_get)),
     )
     path_mod.get_astrbot_plugin_data_path = lambda: str(
         Path(tempfile.gettempdir()) / "blockly_test_data"
@@ -249,10 +253,11 @@ def test_import_rejects_duplicate_names(tmp_path):
 
 
 def _make_plugin_with_theme(tmp_path: Path):
-    """构造带主题目录的插件。"""
+    """构造带主题存储的插件。"""
+    from blockly.theme import ThemeStore
+
     plugin = _make_plugin(tmp_path)
-    plugin.theme_dir = tmp_path / "themes"
-    plugin.theme_dir.mkdir(parents=True, exist_ok=True)
+    plugin.themes = ThemeStore(tmp_path / "themes")
     return plugin
 
 
@@ -264,54 +269,17 @@ def _build_theme_zip(css: str, name: str = "我的主题") -> bytes:
     return buf.getvalue()
 
 
-def test_extract_theme_from_zip():
-    from main import _extract_theme_from_zip
-
-    css, name = _extract_theme_from_zip(_build_theme_zip("body{}", "蓝色主题"))
-    assert name == "蓝色主题"
-    assert "body{}" in css
-
-    # 无 .css 文件应报错
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("readme.txt", "no css")
-    try:
-        _extract_theme_from_zip(buf.getvalue())
-        assert False, "应当抛出 ValueError"
-    except ValueError:
-        pass
-
-
 def test_theme_get_default(tmp_path):
     plugin = _make_plugin_with_theme(tmp_path)
     res = asyncio.run(plugin.api_get_theme())
     assert res["ok"] is True
     assert res["active"] == "default"
-    assert res["custom"] is None
+    assert res["custom_themes"] == []
+    assert res["active_css"] == ""
 
 
-def test_theme_save_and_get_custom(tmp_path):
-    plugin = _make_plugin_with_theme(tmp_path)
-    REQUEST_STATE["json"] = {
-        "active": "custom",
-        "name": "深蓝主题",
-        "css": ".toolbar { background: #123456; }",
-    }
-    res = asyncio.run(plugin.api_save_theme())
-    assert res["ok"] is True
-    assert res["active"] == "custom"
-    # 写入磁盘
-    assert (plugin.theme_dir / "custom.css").exists()
-    assert (plugin.theme_dir / "active.txt").read_text(encoding="utf-8") == "custom"
-
-    REQUEST_STATE["json"] = None
-    got = asyncio.run(plugin.api_get_theme())
-    assert got["active"] == "custom"
-    assert got["custom"]["name"] == "深蓝主题"
-    assert "#123456" in got["custom"]["css"]
-
-
-def test_theme_import_via_base64(tmp_path):
+def test_theme_import_and_file_edit(tmp_path):
+    """导入 zip 生成主题目录与文件树，支持读取/保存/越界拦截。"""
     plugin = _make_plugin_with_theme(tmp_path)
     zipped = _build_theme_zip(".theme-item{color:red}", "红色主题")
     REQUEST_STATE["json"] = {
@@ -319,16 +287,81 @@ def test_theme_import_via_base64(tmp_path):
     }
     res = asyncio.run(plugin.api_import_theme())
     assert res["ok"] is True
-    assert res["active"] == "custom"
+    tid = res["active"]
+    assert tid not in ("default", "dark")
     assert res["name"] == "红色主题"
     assert "color:red" in res["css"]
-    # 落盘并切换为自定义
-    assert (plugin.theme_dir / "custom.css").read_text(encoding="utf-8").find(
-        "color:red"
-    ) != -1
-    assert (plugin.theme_dir / "active.txt").read_text(encoding="utf-8") == "custom"
+
+    # 主题列表含文件树
+    got = asyncio.run(plugin.api_get_theme())
+    assert got["active"] == tid
+    assert len(got["custom_themes"]) == 1
+    theme = got["custom_themes"][0]
+    assert theme["id"] == tid
+    paths = {f["path"] for f in theme["files"]}
+    assert "theme.css" in paths and "theme_name.txt" in paths
+
+    # 读取文件
+    REQUEST_STATE["query"] = {"path": "theme.css"}
+    f = asyncio.run(plugin.api_theme_file(tid))
+    assert f["ok"] is True
+    assert "color:red" in f["content"]
+
+    # 保存文件
+    REQUEST_STATE["json"] = {"path": "theme.css", "content": "body{}"}
+    s = asyncio.run(plugin.api_theme_file_save(tid))
+    assert s["ok"] is True
+    assert plugin.themes.main_css(tid) == "body{}"
+
+    # 路径越界（../）拒绝
+    REQUEST_STATE["json"] = {"path": "../evil.css", "content": "x"}
+    s2 = asyncio.run(plugin.api_theme_file_save(tid))
+    assert s2 is None
+
+    REQUEST_STATE["query"] = {}
+    REQUEST_STATE["json"] = None
+
+
+def test_theme_switch_and_delete(tmp_path):
+    """多主题导入、切换激活、删除激活主题后重置为默认。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+
+    REQUEST_STATE["json"] = {
+        "file_b64": base64.b64encode(_build_theme_zip(".a{}", "主题A")).decode("ascii"),
+    }
+    res_a = asyncio.run(plugin.api_import_theme())
+    tid_a = res_a["active"]
+
+    REQUEST_STATE["json"] = {
+        "file_b64": base64.b64encode(_build_theme_zip(".b{}", "主题B")).decode("ascii"),
+    }
+    res_b = asyncio.run(plugin.api_import_theme())
+    tid_b = res_b["active"]
+    assert tid_a != tid_b
+
+    # 切换到主题 A
+    REQUEST_STATE["json"] = {"active": tid_a}
+    sv = asyncio.run(plugin.api_save_theme())
+    assert sv["ok"] is True
+    assert sv["active"] == tid_a
+    assert ".a{}" in sv["css"]
+
+    # 删除激活的主题 A：删除后重置为默认，列表只剩 B
+    del_res = asyncio.run(plugin.api_theme_delete(tid_a))
+    assert del_res["ok"] is True
+    assert del_res["active"] == "default"
+
+    got = asyncio.run(plugin.api_get_theme())
+    assert len(got["custom_themes"]) == 1
+    assert got["custom_themes"][0]["id"] == tid_b
 
     REQUEST_STATE["json"] = None
+
+
+def test_theme_delete_builtin_rejected(tmp_path):
+    plugin = _make_plugin_with_theme(tmp_path)
+    res = asyncio.run(plugin.api_theme_delete("default"))
+    assert res is None  # error_response stub
 
 
 def test_theme_import_missing_file(tmp_path):
@@ -337,5 +370,23 @@ def test_theme_import_missing_file(tmp_path):
     res = asyncio.run(plugin.api_import_theme())
     # 缺少文件时应报错（error_response stub 返回 None）
     assert res is None
-    assert not (plugin.theme_dir / "custom.css").exists()
+    assert plugin.themes.list_custom() == []
+    REQUEST_STATE["json"] = None
+
+
+def test_theme_import_zip_traversal_sanitized(tmp_path):
+    """zip 条目含 ../ 时应被剔除，不产生目录穿越。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("theme_name.txt", "安全主题")
+        zf.writestr("theme.css", "body{}")
+        zf.writestr("../escape.txt", "evil")
+    REQUEST_STATE["json"] = {
+        "file_b64": base64.b64encode(buf.getvalue()).decode("ascii"),
+    }
+    res = asyncio.run(plugin.api_import_theme())
+    assert res["ok"] is True
+    # escape.txt 不应出现在主题目录外
+    assert not (tmp_path / "escape.txt").exists()
     REQUEST_STATE["json"] = None

@@ -289,6 +289,21 @@
     </div>
   </div>
 
+  <!-- 主题文件编辑弹窗 -->
+  <div class="modal-overlay hidden" id="themeFileModal">
+    <div class="modal theme-file-wide" role="dialog" aria-modal="true">
+      <div class="modal-title" id="themeFileTitle">编辑主题</div>
+      <div class="theme-file-wrap">
+        <div class="theme-file-tree" id="themeFileTree"></div>
+        <textarea class="input theme-file-content" id="themeFileContent" spellcheck="false" placeholder="点击左侧文件进行编辑"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="themeFileCancel">关闭</button>
+        <button class="btn btn-primary" id="themeFileSave">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 描述编辑弹窗 -->
   <div class="modal-overlay hidden" id="descModal">
     <div class="modal" role="dialog" aria-modal="true">

@@ -47,7 +47,12 @@ let availableModels = []; // 后端可用的模型列表
 let dirty = false;
 let loading = false;
 let ORIGINAL_TOOLBOX_XML = null; // 原始工具箱 XML（积木搜索时按关键词重建）
-let themeState = { active: "default", builtin: [], custom: null }; // 主题状态
+let themeState = {
+  active: "default",
+  builtin: [],
+  customThemes: [],
+  activeCss: "",
+}; // 主题状态
 
 /* ---------- 通用 ---------- */
 
@@ -1768,12 +1773,15 @@ function filterToolbox(keyword) {
 
 /* ---------- 主题设置 ---------- */
 
+let themeFileTarget = null; // 正在编辑的主题 {id, name, files}
+let themeCurrentFile = ""; // 当前编辑的文件相对路径
+
 async function initTheme() {
   const st = await loadThemeState();
   if (!st) return;
-  // 刷新后恢复自定义主题 CSS（沙箱 iframe 无 localStorage，主题由后端持久化）
-  if (st.active === "custom" && st.custom) {
-    applyThemeCss(st.custom.css);
+  // 刷新后恢复激活的自定义主题 CSS（沙箱 iframe 无 localStorage，主题由后端持久化）
+  if (st.activeCss) {
+    applyThemeCss(st.activeCss);
   }
 }
 
@@ -1783,7 +1791,8 @@ async function loadThemeState() {
     themeState = {
       active: res.active || "default",
       builtin: res.builtin || [],
-      custom: res.custom || null,
+      customThemes: res.custom_themes || [],
+      activeCss: res.active_css || "",
     };
     return themeState;
   } catch (err) {
@@ -1809,18 +1818,33 @@ async function openThemeDialog() {
   openModal("themeModal");
 }
 
+// 主题条目上的图标按钮（SVG 内联，避免图片资源 401）
+function themeIconButton(kind, title) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "theme-icon-btn";
+  btn.title = title;
+  btn.innerHTML =
+    kind === "settings"
+      ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>';
+  return btn;
+}
+
 function renderThemeList(st) {
   const list = $("themeList");
   list.innerHTML = "";
   const options = [
-    { id: "default", label: "默认主题", desc: "插件默认样式" },
-    { id: "dark", label: "深色主题", desc: "跟随 AstrBot 深色模式" },
+    { id: "default", label: "默认主题", desc: "插件默认样式", editable: false, removable: false },
+    { id: "dark", label: "深色主题", desc: "跟随 AstrBot 深色模式", editable: false, removable: false },
   ];
-  if (st.custom) {
+  for (const t of st.customThemes) {
     options.push({
-      id: "custom",
-      label: st.custom.name,
-      desc: "自定义主题（zip 导入）",
+      id: t.id,
+      label: t.name,
+      desc: `自定义主题（${t.files.length} 个文件）`,
+      editable: true,
+      removable: true,
     });
   }
   for (const opt of options) {
@@ -1837,11 +1861,32 @@ function renderThemeList(st) {
     const descEl = document.createElement("span");
     descEl.className = "theme-desc";
     descEl.textContent = opt.desc;
-    row.append(radio, nameEl, descEl);
+    const actions = document.createElement("span");
+    actions.className = "theme-item-actions";
+    if (opt.editable) {
+      const setBtn = themeIconButton("settings", "编辑主题文件");
+      setBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openThemeFileDialog(opt.id, opt.label);
+      };
+      actions.appendChild(setBtn);
+    }
+    if (opt.removable) {
+      const delBtn = themeIconButton("trash", "删除主题");
+      delBtn.classList.add("danger");
+      delBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteTheme(opt.id, opt.label);
+      };
+      actions.appendChild(delBtn);
+    }
+    row.append(radio, nameEl, descEl, actions);
     list.appendChild(row);
   }
-  $("themeHint").textContent = st.custom
-    ? `当前自定义主题：${st.custom.name}`
+  $("themeHint").textContent = st.customThemes.length
+    ? `已导入 ${st.customThemes.length} 个自定义主题`
     : "导入 zip 主题包后可在此选择自定义主题";
 }
 
@@ -1850,12 +1895,16 @@ function selectedThemeId() {
   return el ? el.value : "default";
 }
 
+function isBuiltinTheme(id) {
+  return id === "default" || id === "dark";
+}
+
 async function applyTheme() {
   const id = selectedThemeId();
   try {
-    await apiPost("theme", { active: id });
-    if (id === "custom" && themeState.custom) {
-      applyThemeCss(themeState.custom.css);
+    const res = await apiPost("theme", { active: id });
+    if (!isBuiltinTheme(id) && res.css) {
+      applyThemeCss(res.css);
     } else {
       applyThemeCss("");
     }
@@ -1891,11 +1940,7 @@ async function importThemeFromFile(file) {
     showToast(err.message || "导入主题失败", true);
     return;
   }
-  themeState = {
-    active: "custom",
-    builtin: themeState.builtin,
-    custom: { name: res.name, css: res.css },
-  };
+  await loadThemeState();
   applyThemeCss(res.css);
   renderThemeList(themeState);
   showToast("主题导入成功，请刷新页面完全生效");
@@ -1905,6 +1950,93 @@ function exportTheme() {
   bridge
     .download("theme/export", {}, "blockly_theme.zip")
     .catch((err) => showToast(err.message || "导出主题失败", true));
+}
+
+async function deleteTheme(tid, label) {
+  const ok = await confirmDialog(
+    `确定删除主题「${label}」吗？删除后不可恢复。`,
+    { title: "删除主题", okText: "删除", danger: true },
+  );
+  if (!ok) return;
+  try {
+    await apiPost(`theme/${tid}/delete`, {});
+  } catch (err) {
+    showToast(err.message || "删除主题失败", true);
+    return;
+  }
+  await loadThemeState();
+  renderThemeList(themeState);
+  showToast("主题已删除");
+}
+
+/* ---------- 主题文件编辑 ---------- */
+
+function openThemeFileDialog(tid, label) {
+  const t = (themeState.customThemes || []).find((x) => x.id === tid);
+  themeFileTarget = { id: tid, name: label, files: t ? t.files || [] : [] };
+  themeCurrentFile = "";
+  $("themeFileTitle").textContent = `编辑主题：${label}`;
+  $("themeFileContent").value = "";
+  $("themeFileSave").disabled = true;
+  renderThemeFileTree();
+  openModal("themeFileModal");
+}
+
+function renderThemeFileTree() {
+  const list = $("themeFileTree");
+  list.innerHTML = "";
+  if (!themeFileTarget || !themeFileTarget.files.length) {
+    list.innerHTML = '<div class="empty-state">主题内没有文件</div>';
+    return;
+  }
+  for (const f of themeFileTarget.files) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className =
+      "theme-file-item" + (f.path === themeCurrentFile ? " active" : "");
+    item.title = f.path;
+    item.onclick = () => selectThemeFile(f.path);
+    const nameEl = document.createElement("span");
+    nameEl.textContent = f.path;
+    const sizeEl = document.createElement("span");
+    sizeEl.className = "theme-file-size";
+    sizeEl.textContent = f.size;
+    item.append(nameEl, sizeEl);
+    list.appendChild(item);
+  }
+}
+
+async function selectThemeFile(path) {
+  if (!themeFileTarget) return;
+  themeCurrentFile = path;
+  renderThemeFileTree();
+  try {
+    const res = await apiGet(`theme/${themeFileTarget.id}/file`, { path });
+    $("themeFileContent").value = res.content || "";
+  } catch (err) {
+    $("themeFileContent").value = "";
+    showToast(err.message || "读取文件失败", true);
+  }
+  $("themeFileSave").disabled = false;
+}
+
+async function saveThemeFile() {
+  if (!themeFileTarget || !themeCurrentFile) return;
+  const content = $("themeFileContent").value;
+  try {
+    await apiPost(`theme/${themeFileTarget.id}/file`, {
+      path: themeCurrentFile,
+      content,
+    });
+  } catch (err) {
+    showToast(err.message || "保存文件失败", true);
+    return;
+  }
+  // 保存的是主样式且当前激活该主题时即时应用
+  if (themeState.active === themeFileTarget.id) {
+    applyThemeCss(content);
+  }
+  showToast("文件已保存");
 }
 
 function collectForm() {
@@ -2801,6 +2933,9 @@ function bindEvents() {
     importThemeFromFile(e.target.files[0]);
     e.target.value = "";
   };
+  // 主题文件编辑
+  $("themeFileCancel").onclick = () => closeModal("themeFileModal");
+  $("themeFileSave").onclick = saveThemeFile;
 
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {

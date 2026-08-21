@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import io
 import json
 import tempfile
 import time
@@ -38,6 +37,7 @@ try:  # AstrBot 以 data.plugins.<name>.main 的包形式加载插件
         run_program,
         simulate_program,
     )
+    from .blockly.theme import BUILTIN_THEMES, NAME_FILE, ThemeStore
 except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
     from blockly.manager import BlocklyManager
     from blockly.program import (
@@ -51,17 +51,12 @@ except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
         run_program,
         simulate_program,
     )
+    from blockly.theme import BUILTIN_THEMES, NAME_FILE, ThemeStore
 
 PLUGIN_NAME = "astrbot_plugin_blockly"
 # 监听优先级：远高于第三方插件默认值（0），仅次于 AstrBot 内置插件（maxsize）。
 # 保证本插件最先处理消息，这样「返回消息/停止事件传播」劫持事件后其他插件不会再收到该消息。
 DEFAULT_PRIORITY = 1000
-
-# 主题：内置主题 + 自定义主题（通过 zip 导入/导出）
-BUILTIN_THEMES = ("default", "dark")
-THEME_ACTIVE_FILE = "active.txt"
-THEME_CUSTOM_CSS = "custom.css"
-THEME_CUSTOM_NAME = "custom_name.txt"
 
 # Web API 更新时允许写入的字段（白名单，避免覆盖内部字段）
 UPDATABLE_FIELDS = (
@@ -102,8 +97,7 @@ class BlocklyPlugin(Star):
         data_dir = Path(get_astrbot_plugin_data_path()) / plugin_name
         self.manager = BlocklyManager(data_dir)
         init_global_store(data_dir / "global_store.json")
-        self.theme_dir = data_dir / "themes"
-        self.theme_dir.mkdir(parents=True, exist_ok=True)
+        self.themes = ThemeStore(data_dir / "themes")
         self._register_web_apis()
 
     # ---------- 生命周期 ----------
@@ -440,6 +434,24 @@ class BlocklyPlugin(Star):
             ["POST"],
             "导入主题（zip）",
         )
+        ctx.register_web_api(
+            f"{prefix}/theme/<tid>/file",
+            self.api_theme_file,
+            ["GET"],
+            "读取主题文件",
+        )
+        ctx.register_web_api(
+            f"{prefix}/theme/<tid>/file",
+            self.api_theme_file_save,
+            ["POST"],
+            "保存主题文件",
+        )
+        ctx.register_web_api(
+            f"{prefix}/theme/<tid>/delete",
+            self.api_theme_delete,
+            ["POST"],
+            "删除主题",
+        )
 
     async def api_list_programs(self) -> Any:
         """返回全部程序（含运行统计，不含大字段），供前端列表渲染。"""
@@ -646,65 +658,52 @@ class BlocklyPlugin(Star):
 
     # ---------- 主题 ----------
 
-    def _theme_read(self, filename: str, default: str = "") -> str:
-        """安全读取主题目录下的文本文件。"""
-        path = self.theme_dir / filename
-        try:
-            if path.exists():
-                return path.read_text(encoding="utf-8").strip()
-        except OSError:
-            pass
-        return default
-
     async def api_get_theme(self) -> Any:
-        """返回当前主题设置（内置主题 + 自定义主题内容）。"""
-        active = self._theme_read(THEME_ACTIVE_FILE, "default")
-        if active not in ("default", "dark", "custom"):
-            active = "default"
-        css = self._theme_read(THEME_CUSTOM_CSS)
+        """返回主题设置：激活主题、内置主题、全部自定义主题及激活主题样式。"""
+        active = self.themes.get_active()
+        active_css = (
+            self.themes.main_css(active) if self.themes.active_is_custom() else ""
+        )
         return json_response(
             {
                 "ok": True,
                 "active": active,
                 "builtin": list(BUILTIN_THEMES),
-                "custom": (
-                    {
-                        "name": self._theme_read(THEME_CUSTOM_NAME, "自定义主题"),
-                        "css": css,
-                    }
-                    if css
-                    else None
-                ),
+                "custom_themes": self.themes.list_custom(),
+                "active_css": active_css,
             }
         )
 
     async def api_save_theme(self) -> Any:
-        """保存主题设置：切换内置主题，或更新自定义主题的 CSS。"""
+        """保存主题设置：切换激活主题（内置主题或自定义主题 id）。"""
         body = await request.json(default={})
         active = str(body.get("active") or "default")
-        if active not in ("default", "dark", "custom"):
-            active = "default"
-        if active == "custom":
-            css = str(body.get("css") or "")
-            if not css.strip():
-                return error_response("自定义主题内容为空", status_code=400)
-            name = str(body.get("name") or "自定义主题").strip() or "自定义主题"
-            (self.theme_dir / THEME_CUSTOM_CSS).write_text(css, encoding="utf-8")
-            (self.theme_dir / THEME_CUSTOM_NAME).write_text(name, encoding="utf-8")
-        (self.theme_dir / THEME_ACTIVE_FILE).write_text(active, encoding="utf-8")
-        return json_response({"ok": True, "active": active})
+        if active not in BUILTIN_THEMES and not (self.themes.root / active).is_dir():
+            return error_response("未知的主题", status_code=400)
+        self.themes.set_active(active)
+        active_css = (
+            self.themes.main_css(active) if self.themes.active_is_custom() else ""
+        )
+        return json_response({"ok": True, "active": active, "css": active_css})
 
     async def api_export_theme(self) -> Any:
-        """把自定义主题导出为 zip 压缩包（内含 theme.css 与 theme_name.txt）。"""
-        css = self._theme_read(THEME_CUSTOM_CSS)
-        if not css:
-            return error_response("暂无自定义主题可导出", status_code=400)
-        name = self._theme_read(THEME_CUSTOM_NAME, "自定义主题")
+        """把当前激活的自定义主题打包为 zip 下载（含全部文件）。"""
+        active = self.themes.get_active()
+        if not self.themes.active_is_custom():
+            return error_response("当前未启用自定义主题，无可导出内容", status_code=400)
+        theme_dir = self.themes.root / active
+        name_file = theme_dir / NAME_FILE
+        try:
+            name = name_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            name = ""
+        name = name or "自定义主题"
         with tempfile.NamedTemporaryFile("wb", suffix=".zip", delete=False) as fp:
             tmp_path = fp.name
         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("theme_name.txt", name)
-            zf.writestr("theme.css", css)
+            for f in theme_dir.rglob("*"):
+                if f.is_file():
+                    zf.write(f, f.relative_to(theme_dir).as_posix())
         return file_response(
             tmp_path,
             filename=f"blockly_theme_{name}.zip",
@@ -712,7 +711,7 @@ class BlocklyPlugin(Star):
         )
 
     async def api_import_theme(self) -> Any:
-        """导入主题 zip：解压读取其中的 .css 并保存为自定义主题。
+        """导入主题 zip：解压为新的自定义主题目录并激活。
 
         支持两种上传方式：multipart 字段 ``file``（原样 zip），或 JSON body 的
         ``file_b64``（zip 的 base64，供沙箱 iframe 内无法上传文件的页面使用）。
@@ -733,13 +732,41 @@ class BlocklyPlugin(Star):
                 "缺少主题文件（字段名：file 或 file_b64）", status_code=400
             )
         try:
-            css, name = _extract_theme_from_zip(raw)
+            theme = self.themes.import_zip(raw)
         except Exception as exc:  # noqa: BLE001 - 解析失败统一返回友好错误
             return error_response(f"主题包解析失败：{exc}", status_code=400)
-        (self.theme_dir / THEME_CUSTOM_CSS).write_text(css, encoding="utf-8")
-        (self.theme_dir / THEME_CUSTOM_NAME).write_text(name, encoding="utf-8")
-        (self.theme_dir / THEME_ACTIVE_FILE).write_text("custom", encoding="utf-8")
-        return json_response({"ok": True, "active": "custom", "name": name, "css": css})
+        self.themes.set_active(theme["id"])
+        return json_response(
+            {
+                "ok": True,
+                "active": theme["id"],
+                "name": theme["name"],
+                "css": self.themes.main_css(theme["id"]),
+            }
+        )
+
+    async def api_theme_file(self, tid: str) -> Any:
+        """读取主题内文件内容（query 参数 path 为文件相对路径）。"""
+        path = request.query.get("path", "")
+        content = self.themes.read_file(tid, path)
+        if content is None:
+            return error_response("文件不存在或路径越界", status_code=404)
+        return json_response({"ok": True, "path": path, "content": content})
+
+    async def api_theme_file_save(self, tid: str) -> Any:
+        """保存主题内文件内容（body 含 path 与 content）。"""
+        body = await request.json(default={})
+        path = str(body.get("path") or "")
+        content = str(body.get("content") or "")
+        if not self.themes.write_file(tid, path, content):
+            return error_response("保存失败：文件路径越界或主题不存在", status_code=400)
+        return json_response({"ok": True, "path": path})
+
+    async def api_theme_delete(self, tid: str) -> Any:
+        """删除自定义主题（前端已弹窗确认）。"""
+        if not self.themes.delete(tid):
+            return error_response("主题不存在或为内置主题", status_code=400)
+        return json_response({"ok": True, "active": self.themes.get_active()})
 
     async def _import_data(self, body: Any) -> Any:
         """解析并导入导出数据。
@@ -822,32 +849,3 @@ class BlocklyPlugin(Star):
             return max(1, int(self.config.get("default_timeout") or 30))
         except (TypeError, ValueError):
             return 30.0
-
-
-def _extract_theme_from_zip(raw: bytes) -> tuple[str, str]:
-    """从主题 zip 字节中提取 CSS 与主题名。
-
-    优先读取 ``theme.css``，否则取包内第一个 ``.css`` 文件；主题名从
-    ``theme_name.txt`` 读取（可选）。zip 条目仅读取不落盘，无路径穿越风险。
-
-    Returns:
-        (css, name) 元组。
-
-    Raises:
-        ValueError: 压缩包内没有 .css 文件或 zip 损坏。
-    """
-    with zipfile.ZipFile(io.BytesIO(raw)) as zf:
-        names = [n for n in zf.namelist() if not n.endswith("/")]
-        css_name = next(
-            (n for n in names if Path(n).name == "theme.css"),
-            next((n for n in names if n.lower().endswith(".css")), None),
-        )
-        if not css_name:
-            raise ValueError("压缩包中未找到 .css 样式文件")
-        css = zf.read(css_name).decode("utf-8", errors="replace")
-        name = "自定义主题"
-        name_file = next((n for n in names if Path(n).name == "theme_name.txt"), None)
-        if name_file:
-            name = zf.read(name_file).decode("utf-8", errors="replace").strip()
-            name = name or "自定义主题"
-        return css, name

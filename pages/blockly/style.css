@@ -1072,3 +1072,102 @@ html[data-theme="dark"] .blocklyScrollbarBackground {
   color: var(--danger);
 }
 
+/* 主题条目上的设置/删除按钮 */
+.theme-item-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.theme-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted-strong);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.theme-icon-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.theme-icon-btn.danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* 主题文件编辑弹窗 */
+.theme-file-wide {
+  width: min(760px, 94vw);
+}
+
+.theme-file-wrap {
+  display: flex;
+  gap: 12px;
+  height: min(52vh, 420px);
+  margin-top: 10px;
+}
+
+.theme-file-tree {
+  width: 42%;
+  min-width: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg);
+}
+
+.theme-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  word-break: break-all;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.theme-file-item:hover {
+  border-color: var(--primary);
+}
+
+.theme-file-item.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.theme-file-size {
+  color: var(--muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.theme-file-content {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  resize: none;
+  font-family: Consolas, Monaco, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
