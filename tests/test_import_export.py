@@ -460,14 +460,44 @@ def test_theme_export_fallback_to_active(tmp_path):
     assert "激活主题" in captured["filename"]
 
 
-def test_theme_export_builtin_or_missing_rejected(tmp_path):
-    """导出内置主题或不存在的主题应被拒绝。"""
+def test_theme_export_builtin_available(tmp_path):
+    """内置主题可导出：内容为默认样式（theme.css + theme_name.txt）。"""
     plugin = _make_plugin_with_theme(tmp_path)
-    # 内置主题
-    result, captured = _export_theme_captured(plugin, {"tid": "default"})
-    assert result is None
-    assert not captured
-    # 不存在的主题
+    for tid, expect_name in (("default", "默认主题"), ("dark", "深色主题")):
+        result, captured = _export_theme_captured(plugin, {"tid": tid})
+        assert result is not None
+        assert captured["path"]
+        assert expect_name in captured["filename"]
+        with zipfile.ZipFile(captured["path"]) as zf:
+            names = set(zf.namelist())
+            name_content = zf.read("theme_name.txt").decode("utf-8").strip()
+        assert "theme.css" in names and "theme_name.txt" in names
+        assert name_content == expect_name
+
+
+def test_theme_export_missing_rejected(tmp_path):
+    """导出不存在的主题应被拒绝。"""
+    plugin = _make_plugin_with_theme(tmp_path)
     result, captured = _export_theme_captured(plugin, {"tid": "not-exist"})
     assert result is None
     assert not captured
+
+
+def test_theme_create(tmp_path):
+    """新增主题：内容为默认主题样式、自动激活、重名自动追加序号。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+    REQUEST_STATE["json"] = {}
+    res = asyncio.run(plugin.api_create_theme())
+    assert res["ok"] is True
+    tid = res["id"]
+    assert tid not in ("default", "dark")
+    assert res["name"] == "新主题"
+    assert res["active"] == tid
+    # 内容为默认主题样式
+    assert plugin.themes.read_file(tid, "theme_name.txt").strip() == "新主题"
+    assert plugin.themes.read_file(tid, "theme.css") != ""
+    # 再次创建同名自动追加序号
+    res2 = asyncio.run(plugin.api_create_theme())
+    assert res2["name"] == "新主题 (2)"
+    assert res2["id"] != tid
+    REQUEST_STATE["json"] = None

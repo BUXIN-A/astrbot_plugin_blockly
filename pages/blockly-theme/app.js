@@ -173,15 +173,13 @@ function renderThemeList() {
     }
     actions.appendChild(setBtn);
 
-    // 导出：内置主题无文件树，不提供导出
-    if (!opt.builtin) {
-      const expBtn = iconButton("export", "导出主题（zip）", false);
-      expBtn.onclick = (e) => {
-        e.stopPropagation();
-        exportTheme(opt.id, opt.label);
-      };
-      actions.appendChild(expBtn);
-    }
+    // 导出：内置主题内容为默认样式，同样可导出以便复制修改
+    const expBtn = iconButton("export", "导出主题（zip）", false);
+    expBtn.onclick = (e) => {
+      e.stopPropagation();
+      exportTheme(opt.id, opt.label);
+    };
+    actions.appendChild(expBtn);
 
     // 删除：内置主题禁用
     const delBtn = iconButton(
@@ -216,7 +214,24 @@ async function applyTheme(id) {
   showToast("主题已切换，刷新「Blockly 可视化编程」页面后完全生效");
 }
 
-/* ---------- 导入 / 导出 / 删除 ---------- */
+/* ---------- 导入 / 创建 / 导出 / 删除 ---------- */
+
+async function createTheme() {
+  try {
+    const res = await bridge.apiPost("theme/create", {});
+    await loadState();
+    renderThemeList();
+    // 创建后自动打开文件编辑，便于直接修改主题内容
+    openEditor({
+      id: res.id,
+      name: res.name,
+      files: res.files || [],
+    });
+    showToast(`主题「${res.name}」已创建（内容为默认主题样式）`);
+  } catch (err) {
+    showToast(err.message || "新建主题失败", true);
+  }
+}
 
 async function importTheme(file) {
   if (!file) return;
@@ -342,6 +357,7 @@ async function init() {
     const ctx = await bridge.ready();
     document.title = ctx.pageTitle || "Blockly 主题设置";
     bindConfirm();
+    $("createBtn").onclick = createTheme;
     $("importBtn").onclick = () => $("importFile").click();
     $("importFile").onchange = (e) => {
       importTheme(e.target.files[0]);

@@ -2,7 +2,8 @@
 
 每个自定义主题对应 ``themes/<id>/`` 目录，主题 zip 解压出的全部文件即该主题的
 文件树（其中 ``theme.css`` 为主样式、``theme_name.txt`` 为主题名）。内置主题
-``default`` / ``dark`` 不占用目录。
+``default`` / ``dark`` 不占用目录，其内容（默认样式）由 ``default_theme_css``
+提供，支持导出为 zip 便于复制修改。
 """
 
 from __future__ import annotations
@@ -17,12 +18,16 @@ from .program import new_id
 
 # 内置主题（不占用磁盘目录）
 BUILTIN_THEMES = ("default", "dark")
+# 内置主题的显示名
+BUILTIN_THEME_NAMES = {"default": "默认主题", "dark": "深色主题"}
 # 激活状态文件名
 ACTIVE_FILE = "active.txt"
 # 主题名文件名
 NAME_FILE = "theme_name.txt"
 # 主样式文件名
 MAIN_CSS = "theme.css"
+# 新建主题的默认名称（重名时自动追加序号）
+DEFAULT_THEME_NAME = "新主题"
 
 
 def _safe_zip_path(name: str) -> str:
@@ -39,6 +44,22 @@ def _safe_join(base: Path, rel: str) -> Path | None:
     if not target.is_relative_to(base.resolve()):
         return None
     return target
+
+
+def default_theme_css() -> str:
+    """返回默认主题样式内容。
+
+    内置主题（default/dark）与「新增主题」使用同一份基础样式：Blockly 编辑器
+    的 ``pages/blockly/style.css``。文件不可读时返回空字符串（主题仍可生效，
+    只是没有覆盖样式）。
+    """
+    try:
+        css_path = (
+            Path(__file__).resolve().parent.parent / "pages" / "blockly" / "style.css"
+        )
+        return css_path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
 
 
 class ThemeStore:
@@ -167,6 +188,60 @@ class ThemeStore:
         if self.get_active() == tid:
             self.set_active("default")
         return True
+
+    def create(self, name: str = "") -> dict[str, Any]:
+        """新建自定义主题：内容为默认主题样式，返回 {id, name, files}。
+
+        名称缺省或为空时使用「新主题」，与已有主题重名时自动追加序号。
+        """
+        tid = new_id()
+        target = self.root / tid
+        target.mkdir(parents=True, exist_ok=True)
+        name = self._unique_theme_name(str(name or "").strip() or DEFAULT_THEME_NAME)
+        try:
+            (target / NAME_FILE).write_text(name, encoding="utf-8")
+            css = default_theme_css()
+            if css:
+                (target / MAIN_CSS).write_text(css, encoding="utf-8")
+        except Exception:
+            shutil.rmtree(target, ignore_errors=True)
+            raise
+        return {"id": tid, "name": name, "files": self._list_files(target)}
+
+    def _unique_theme_name(self, base: str) -> str:
+        """在已有自定义主题名中去重：base、base (2)、base (3)…"""
+        existing = {t["name"] for t in self.list_custom()}
+        if base not in existing:
+            return base
+        index = 2
+        while f"{base} ({index})" in existing:
+            index += 1
+        return f"{base} ({index})"
+
+    def export_zip(self, tid: str) -> bytes | None:
+        """把主题（内置或自定义）打包为 zip 字节。
+
+        内置主题内容为默认样式（theme.css + theme_name.txt）；自定义主题为
+        目录全部文件；主题不存在或路径非法时返回 None。
+        """
+        tid = str(tid or "").strip()
+        if not tid:
+            return None
+        if tid in BUILTIN_THEMES:
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr(NAME_FILE, BUILTIN_THEME_NAMES.get(tid, tid))
+                zf.writestr(MAIN_CSS, default_theme_css())
+            return buf.getvalue()
+        theme_dir = self._theme_dir(tid)
+        if theme_dir is None:
+            return None
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in theme_dir.rglob("*"):
+                if f.is_file():
+                    zf.write(f, f.relative_to(theme_dir).as_posix())
+        return buf.getvalue()
 
     # ---------- 文件树读写 ----------
     def _theme_dir(self, tid: str) -> Path | None:

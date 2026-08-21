@@ -14,7 +14,6 @@ import base64
 import json
 import tempfile
 import time
-import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +36,12 @@ try:  # AstrBot 以 data.plugins.<name>.main 的包形式加载插件
         run_program,
         simulate_program,
     )
-    from .blockly.theme import BUILTIN_THEMES, NAME_FILE, ThemeStore
+    from .blockly.theme import (
+        BUILTIN_THEME_NAMES,
+        BUILTIN_THEMES,
+        NAME_FILE,
+        ThemeStore,
+    )
 except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
     from blockly.manager import BlocklyManager
     from blockly.program import (
@@ -51,7 +55,12 @@ except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
         run_program,
         simulate_program,
     )
-    from blockly.theme import BUILTIN_THEMES, NAME_FILE, ThemeStore
+    from blockly.theme import (
+        BUILTIN_THEME_NAMES,
+        BUILTIN_THEMES,
+        NAME_FILE,
+        ThemeStore,
+    )
 
 PLUGIN_NAME = "astrbot_plugin_blockly"
 # 监听优先级：远高于第三方插件默认值（0），仅次于 AstrBot 内置插件（maxsize）。
@@ -435,6 +444,12 @@ class BlocklyPlugin(Star):
             "导入主题（zip）",
         )
         ctx.register_web_api(
+            f"{prefix}/theme/create",
+            self.api_create_theme,
+            ["POST"],
+            "新建主题（内容为默认主题样式）",
+        )
+        ctx.register_web_api(
             f"{prefix}/theme/<tid>/file",
             self.api_theme_file,
             ["GET"],
@@ -687,32 +702,35 @@ class BlocklyPlugin(Star):
         return json_response({"ok": True, "active": active, "css": active_css})
 
     async def api_export_theme(self) -> Any:
-        """把指定（默认当前激活）的自定义主题打包为 zip 下载（含全部文件）。
+        """把指定（默认当前激活）的主题打包为 zip 下载（含全部文件）。
 
-        通过 query 参数 ``tid`` 指定要导出的自定义主题；未指定时回退到当前激活
-        主题。这样即使当前激活的是内置主题，也能导出任意已导入的自定义主题。
+        通过 query 参数 ``tid`` 指定要导出的主题；未指定时回退到当前激活主题。
+        内置主题（default/dark）也可导出：内容为默认样式，便于复制修改后再导入。
         """
         tid = str(request.query.get("tid") or "") or self.themes.get_active()
-        if tid in BUILTIN_THEMES or not (self.themes.root / tid).is_dir():
-            return error_response("主题不存在或为内置主题，无可导出内容", status_code=400)
-        theme_dir = self.themes.root / tid
-        name_file = theme_dir / NAME_FILE
-        try:
-            name = name_file.read_text(encoding="utf-8").strip()
-        except OSError:
-            name = ""
-        name = name or "自定义主题"
+        raw = self.themes.export_zip(tid)
+        if raw is None:
+            return error_response("主题不存在，无可导出内容", status_code=400)
+        if tid in BUILTIN_THEMES:
+            name = BUILTIN_THEME_NAMES.get(tid, tid)
+        else:
+            name = (self.themes.read_file(tid, NAME_FILE) or "自定义主题").strip()
+            name = name or "自定义主题"
         with tempfile.NamedTemporaryFile("wb", suffix=".zip", delete=False) as fp:
+            fp.write(raw)
             tmp_path = fp.name
-        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for f in theme_dir.rglob("*"):
-                if f.is_file():
-                    zf.write(f, f.relative_to(theme_dir).as_posix())
         return file_response(
             tmp_path,
             filename=f"blockly_theme_{name}.zip",
             content_type="application/zip",
         )
+
+    async def api_create_theme(self) -> Any:
+        """新建自定义主题：内容为默认主题样式，创建后自动激活。"""
+        body = await request.json(default={})
+        theme = self.themes.create(str(body.get("name") or ""))
+        self.themes.set_active(theme["id"])
+        return json_response({"ok": True, "active": theme["id"], **theme})
 
     async def api_import_theme(self) -> Any:
         """导入主题 zip：解压为新的自定义主题目录并激活。

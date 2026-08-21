@@ -1787,6 +1787,27 @@ function applyThemeCss(css) {
   style.textContent = css || "";
 }
 
+// 点击「主题」按钮切换到独立的主题设置页面。
+// 插件页面 URL 为 /api/plugin/page/content/<插件>/<页面>/...，把当前页面段替换为
+// blockly-theme 并回到页面根，服务端会自动为新页面签发 asset_token（页面访问由
+// Dashboard 登录 cookie 鉴权）。
+function gotoThemePage() {
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  const isPluginPage =
+    parts.length >= 6 &&
+    parts[0] === "api" &&
+    parts[2] === "plugin" &&
+    parts[3] === "page" &&
+    parts[4] === "content";
+  if (isPluginPage) {
+    parts[5] = "blockly-theme";
+    parts.length = 6;
+    window.location.href = "/" + parts.join("/");
+  } else {
+    showToast("主题设置已移至独立的「Blockly 主题设置」页面", true);
+  }
+}
+
 function collectForm() {
   const triggerType = $("triggerType").value;
   const triggerValue =
@@ -2670,9 +2691,8 @@ function bindEvents() {
     searchTimer = setTimeout(() => filterToolbox(e.target.value), 200);
   });
 
-  // 主题设置已移至独立的「Blockly 主题设置」页面，此处仅做引导提示
-  $("themeBtn").onclick = () =>
-    showToast("主题设置已移至独立的「Blockly 主题设置」页面");
+  // 主题设置已迁移到独立的「Blockly 主题设置」页面，点击直接跳转
+  $("themeBtn").onclick = gotoThemePage;
 
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {
