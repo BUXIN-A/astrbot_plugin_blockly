@@ -7,6 +7,10 @@
     "blockly": {
       "title": "Blockly 可视化编程",
       "description": "使用 Blockly 积木（或直接写 Python）编写程序，操控 AstrBot。"
+    },
+    "blockly-theme": {
+      "title": "Blockly 主题设置",
+      "description": "定制 Blockly 编辑器的界面样式：切换 / 导入 / 导出主题，编辑自定义主题文件。"
     }
   }
 }

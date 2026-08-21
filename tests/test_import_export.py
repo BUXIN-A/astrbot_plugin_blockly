@@ -7,8 +7,8 @@ import asyncio
 import base64
 import io
 import sys
-import types
 import tempfile
+import types
 import zipfile
 from pathlib import Path
 
@@ -111,7 +111,6 @@ if "astrbot" not in sys.modules:
 
 from blockly.manager import BlocklyManager
 from blockly.program import BlocklyProgram
-
 from main import BlocklyPlugin
 
 
@@ -192,7 +191,7 @@ def test_import_assigns_new_id_and_disables(tmp_path):
     res = asyncio.run(plugin._import_data(body))
 
     imported = plugin.manager.list_programs()
-    new_program = [p for p in imported if p.id != existing_id][0]
+    new_program = next(p for p in imported if p.id != existing_id)
     assert res["ok"] is True
     assert res["imported"] == 1
     # 新 id，且不等于原 id
@@ -390,3 +389,85 @@ def test_theme_import_zip_traversal_sanitized(tmp_path):
     # escape.txt 不应出现在主题目录外
     assert not (tmp_path / "escape.txt").exists()
     REQUEST_STATE["json"] = None
+
+
+def _export_theme_captured(plugin, query: dict):
+    """调用导出 API，捕获 file_response 参数。
+
+    成功时返回 (结果, {path, filename})，失败（error_response）时返回 (None, {})。
+    通过临时替换 main 模块的 file_response 绑定，验证导出 zip 的实际内容。
+    """
+    import main as main_mod
+
+    captured = {}
+
+    def _file_response(path, filename=None, content_type=None):
+        captured["path"] = path
+        captured["filename"] = filename
+        return {"__file__": path, "__filename__": filename}
+
+    original = main_mod.file_response
+    main_mod.file_response = _file_response
+    try:
+        REQUEST_STATE["query"] = dict(query)
+        result = asyncio.run(plugin.api_export_theme())
+    finally:
+        main_mod.file_response = original
+        REQUEST_STATE["query"] = {}
+    return result, captured
+
+
+def test_theme_export_by_tid(tmp_path):
+    """指定 tid 导出自定义主题：即使当前激活的不是该主题也能导出。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+    REQUEST_STATE["json"] = {
+        "file_b64": base64.b64encode(_build_theme_zip(".a{}", "导出主题A")).decode(
+            "ascii"
+        ),
+    }
+    res = asyncio.run(plugin.api_import_theme())
+    tid = res["active"]
+    REQUEST_STATE["json"] = None
+
+    # 切换到内置主题，验证 tid 指定导出不受激活状态影响
+    REQUEST_STATE["json"] = {"active": "default"}
+    asyncio.run(plugin.api_save_theme())
+    REQUEST_STATE["json"] = None
+
+    result, captured = _export_theme_captured(plugin, {"tid": tid})
+    assert result is not None
+    assert captured["path"]
+    assert "导出主题A" in captured["filename"]
+    # 生成的 zip 含主题文件
+    with zipfile.ZipFile(captured["path"]) as zf:
+        names = set(zf.namelist())
+    assert "theme.css" in names and "theme_name.txt" in names
+
+
+def test_theme_export_fallback_to_active(tmp_path):
+    """未指定 tid 时导出当前激活的自定义主题。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+    REQUEST_STATE["json"] = {
+        "file_b64": base64.b64encode(_build_theme_zip(".b{}", "激活主题")).decode(
+            "ascii"
+        ),
+    }
+    asyncio.run(plugin.api_import_theme())  # 导入后自动激活
+    REQUEST_STATE["json"] = None
+
+    result, captured = _export_theme_captured(plugin, {})
+    assert result is not None
+    assert "激活主题" in captured["filename"]
+
+
+def test_theme_export_builtin_or_missing_rejected(tmp_path):
+    """导出内置主题或不存在的主题应被拒绝。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+    # 内置主题
+    result, captured = _export_theme_captured(plugin, {"tid": "default"})
+    assert result is None
+    assert not captured
+    # 不存在的主题
+    result, captured = _export_theme_captured(plugin, {"tid": "not-exist"})
+    assert result is None
+    assert not captured

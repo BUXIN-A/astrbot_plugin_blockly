@@ -687,11 +687,15 @@ class BlocklyPlugin(Star):
         return json_response({"ok": True, "active": active, "css": active_css})
 
     async def api_export_theme(self) -> Any:
-        """把当前激活的自定义主题打包为 zip 下载（含全部文件）。"""
-        active = self.themes.get_active()
-        if not self.themes.active_is_custom():
-            return error_response("当前未启用自定义主题，无可导出内容", status_code=400)
-        theme_dir = self.themes.root / active
+        """把指定（默认当前激活）的自定义主题打包为 zip 下载（含全部文件）。
+
+        通过 query 参数 ``tid`` 指定要导出的自定义主题；未指定时回退到当前激活
+        主题。这样即使当前激活的是内置主题，也能导出任意已导入的自定义主题。
+        """
+        tid = str(request.query.get("tid") or "") or self.themes.get_active()
+        if tid in BUILTIN_THEMES or not (self.themes.root / tid).is_dir():
+            return error_response("主题不存在或为内置主题，无可导出内容", status_code=400)
+        theme_dir = self.themes.root / tid
         name_file = theme_dir / NAME_FILE
         try:
             name = name_file.read_text(encoding="utf-8").strip()

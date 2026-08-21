@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blockly 主题设置</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <div class="header-main">
+        <h1>Blockly 主题设置</h1>
+        <p class="header-desc">
+          主题用于定制 Blockly 编辑器的界面样式（CSS），只影响「Blockly 可视化编程」页面，不影响本设置页面。
+          切换主题后需刷新 Blockly 编辑页面以完全生效。
+        </p>
+      </div>
+      <div class="header-actions">
+        <button class="btn" id="importBtn" title="导入 zip 主题包">导入主题（zip）</button>
+        <input type="file" id="importFile" accept=".zip,application/zip" hidden />
+      </div>
+    </header>
+
+    <div class="body">
+      <aside class="theme-panel">
+        <div class="panel-title">主题列表</div>
+        <div class="theme-list" id="themeList"></div>
+      </aside>
+
+      <main class="editor-panel">
+        <div class="editor-head">
+          <div class="panel-title" id="editorTitle">文件编辑</div>
+          <button class="btn btn-primary" id="fileSave" disabled>保存</button>
+        </div>
+        <div class="editor-empty" id="editorEmpty">
+          点击左侧自定义主题的「设置」按钮，可查看与编辑该主题内的文件（如 theme.css）
+        </div>
+        <div class="editor-wrap hidden" id="editorWrap">
+          <div class="file-tree" id="fileTree"></div>
+          <textarea class="file-content" id="fileContent" spellcheck="false"
+            placeholder="点击左侧文件查看/编辑内容"></textarea>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- 通用确认弹窗（沙箱 iframe 内原生 confirm 不可用） -->
+  <div class="modal-overlay hidden" id="confirmModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-title" id="confirmTitle">提示</div>
+      <div class="modal-message" id="confirmMessage"></div>
+      <div class="modal-actions">
+        <button class="btn" id="confirmCancel">取消</button>
+        <button class="btn btn-danger" id="confirmOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/api/plugin/page/bridge-sdk.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

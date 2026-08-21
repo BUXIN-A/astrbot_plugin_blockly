@@ -47,12 +47,6 @@ let availableModels = []; // 后端可用的模型列表
 let dirty = false;
 let loading = false;
 let ORIGINAL_TOOLBOX_XML = null; // 原始工具箱 XML（积木搜索时按关键词重建）
-let themeState = {
-  active: "default",
-  builtin: [],
-  customThemes: [],
-  activeCss: "",
-}; // 主题状态
 
 /* ---------- 通用 ---------- */
 
@@ -1771,85 +1765,15 @@ function filterToolbox(keyword) {
   workspace.updateToolbox(dom);
 }
 
-/* ---------- 主题设置 ---------- */
+/* ---------- 主题应用 ---------- */
 
-let themeFileTarget = null; // 正在编辑的主题 {id, name, files}
-let themeCurrentFile = ""; // 当前编辑的文件相对路径
-
-// 主题设置界面豁免规则：自定义主题只影响 Blockly 主界面，
-// 主题设置/文件编辑弹窗始终使用页面默认样式，避免被主题改到无法操作。
-const THEME_UI_EXEMPT_CSS = `
-#themeModal, #themeFileModal { background: rgba(0,0,0,.45) !important; }
-#themeModal .modal, #themeFileModal .modal {
-  background: var(--panel) !important; color: var(--text) !important;
-  border: 1px solid var(--border) !important; border-radius: 12px !important;
-  box-shadow: var(--shadow) !important;
-}
-#themeModal .modal-title, #themeFileModal .modal-title { color: var(--text) !important; }
-#themeModal .modal-message, #themeFileModal .modal-message { color: var(--text) !important; }
-#themeModal .modal-message .strong, #themeFileModal .modal-message .strong { color: var(--danger) !important; }
-#themeModal label, #themeFileModal label { color: var(--muted) !important; }
-#themeModal .theme-item, #themeFileModal .theme-item {
-  background: var(--panel) !important; border-color: var(--border) !important; color: var(--text) !important;
-}
-#themeModal .theme-item:hover, #themeFileModal .theme-item:hover { border-color: var(--primary) !important; }
-#themeModal .theme-item:has(input:checked), #themeFileModal .theme-item:has(input:checked) {
-  border-color: var(--primary) !important; background: var(--primary-soft) !important;
-}
-#themeModal .theme-name, #themeFileModal .theme-name { color: var(--text) !important; }
-#themeModal .theme-desc, #themeFileModal .theme-desc { color: var(--muted) !important; }
-#themeModal .btn, #themeFileModal .btn {
-  background: var(--panel) !important; color: var(--text) !important; border-color: var(--border) !important;
-}
-#themeModal .btn:hover, #themeFileModal .btn:hover { border-color: var(--primary) !important; }
-#themeModal .btn-primary, #themeFileModal .btn-primary {
-  background: var(--primary) !important; border-color: var(--primary) !important; color: #fff !important;
-}
-#themeModal .btn-danger, #themeFileModal .btn-danger {
-  background: var(--danger) !important; border-color: var(--danger) !important; color: #fff !important;
-}
-#themeModal .input, #themeModal textarea, #themeModal select,
-#themeFileModal .input, #themeFileModal textarea, #themeFileModal select {
-  background: var(--bg) !important; color: var(--text) !important; border-color: var(--border) !important;
-}
-#themeModal .theme-icon-btn, #themeFileModal .theme-icon-btn {
-  background: var(--panel) !important; color: var(--muted-strong) !important; border-color: var(--border) !important;
-}
-#themeModal .theme-icon-btn:hover, #themeFileModal .theme-icon-btn:hover {
-  color: var(--primary) !important; border-color: var(--primary) !important;
-}
-#themeModal .theme-file-item, #themeFileModal .theme-file-item {
-  background: var(--panel) !important; color: var(--text) !important; border-color: transparent !important;
-}
-#themeModal .theme-file-item:hover, #themeModal .theme-file-item.active,
-#themeFileModal .theme-file-item:hover, #themeFileModal .theme-file-item.active {
-  border-color: var(--primary) !important; background: var(--primary-soft) !important;
-}
-#themeModal .theme-file-size, #themeFileModal .theme-file-size { color: var(--muted) !important; }
-`;
-
+// 主题设置已迁移到独立的「Blockly 主题设置」页面，编辑器只负责应用激活主题的 CSS。
 async function initTheme() {
-  const st = await loadThemeState();
-  if (!st) return;
-  // 刷新后恢复激活的自定义主题 CSS（沙箱 iframe 无 localStorage，主题由后端持久化）
-  if (st.activeCss) {
-    applyThemeCss(st.activeCss);
-  }
-}
-
-async function loadThemeState() {
   try {
     const res = await apiGet("theme");
-    themeState = {
-      active: res.active || "default",
-      builtin: res.builtin || [],
-      customThemes: res.custom_themes || [],
-      activeCss: res.active_css || "",
-    };
-    return themeState;
+    applyThemeCss(res.active_css || "");
   } catch (err) {
     showToast(err.message || "加载主题设置失败", true);
-    return null;
   }
 }
 
@@ -1861,242 +1785,6 @@ function applyThemeCss(css) {
     document.head.appendChild(style);
   }
   style.textContent = css || "";
-  // 主题设置界面豁免规则始终追加在主题 CSS 之后，保证弹窗不被主题改动
-  let exempt = document.getElementById("themeExempt");
-  if (!exempt) {
-    exempt = document.createElement("style");
-    exempt.id = "themeExempt";
-    document.head.appendChild(exempt);
-  }
-  exempt.textContent = THEME_UI_EXEMPT_CSS;
-}
-
-async function openThemeDialog() {
-  const st = await loadThemeState();
-  if (!st) return;
-  renderThemeList(st);
-  openModal("themeModal");
-}
-
-// 主题条目上的图标按钮（SVG 内联，避免图片资源 401）
-function themeIconButton(kind, title) {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "theme-icon-btn";
-  btn.title = title;
-  btn.innerHTML =
-    kind === "settings"
-      ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
-      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>';
-  return btn;
-}
-
-function renderThemeList(st) {
-  const list = $("themeList");
-  list.innerHTML = "";
-  const options = [
-    { id: "default", label: "默认主题", desc: "插件默认样式", editable: false, removable: false },
-    { id: "dark", label: "深色主题", desc: "跟随 AstrBot 深色模式", editable: false, removable: false },
-  ];
-  for (const t of st.customThemes) {
-    options.push({
-      id: t.id,
-      label: t.name,
-      desc: `自定义主题（${t.files.length} 个文件）`,
-      editable: true,
-      removable: true,
-    });
-  }
-  for (const opt of options) {
-    const row = document.createElement("label");
-    row.className = "theme-item";
-    const radio = document.createElement("input");
-    radio.type = "radio";
-    radio.name = "themePick";
-    radio.value = opt.id;
-    radio.checked = st.active === opt.id;
-    const nameEl = document.createElement("span");
-    nameEl.className = "theme-name";
-    nameEl.textContent = opt.label;
-    const descEl = document.createElement("span");
-    descEl.className = "theme-desc";
-    descEl.textContent = opt.desc;
-    const actions = document.createElement("span");
-    actions.className = "theme-item-actions";
-    if (opt.editable) {
-      const setBtn = themeIconButton("settings", "编辑主题文件");
-      setBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openThemeFileDialog(opt.id, opt.label);
-      };
-      actions.appendChild(setBtn);
-    }
-    if (opt.removable) {
-      const delBtn = themeIconButton("trash", "删除主题");
-      delBtn.classList.add("danger");
-      delBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        deleteTheme(opt.id, opt.label);
-      };
-      actions.appendChild(delBtn);
-    }
-    row.append(radio, nameEl, descEl, actions);
-    list.appendChild(row);
-  }
-  $("themeHint").textContent = st.customThemes.length
-    ? `已导入 ${st.customThemes.length} 个自定义主题`
-    : "导入 zip 主题包后可在此选择自定义主题";
-}
-
-function selectedThemeId() {
-  const el = document.querySelector('input[name="themePick"]:checked');
-  return el ? el.value : "default";
-}
-
-function isBuiltinTheme(id) {
-  return id === "default" || id === "dark";
-}
-
-async function applyTheme() {
-  const id = selectedThemeId();
-  try {
-    const res = await apiPost("theme", { active: id });
-    if (!isBuiltinTheme(id) && res.css) {
-      applyThemeCss(res.css);
-    } else {
-      applyThemeCss("");
-    }
-  } catch (err) {
-    showToast(err.message || "保存主题失败", true);
-    return;
-  }
-  themeState.active = id;
-  closeModal("themeModal");
-  showToast("主题已切换，请刷新页面重新进入界面");
-}
-
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
-
-async function importThemeFromFile(file) {
-  if (!file) return;
-  let res;
-  try {
-    const buf = await file.arrayBuffer();
-    res = await apiPost("theme/import", {
-      file_b64: arrayBufferToBase64(buf),
-      filename: file.name,
-    });
-  } catch (err) {
-    showToast(err.message || "导入主题失败", true);
-    return;
-  }
-  await loadThemeState();
-  applyThemeCss(res.css);
-  renderThemeList(themeState);
-  showToast("主题导入成功，请刷新页面完全生效");
-}
-
-function exportTheme() {
-  bridge
-    .download("theme/export", {}, "blockly_theme.zip")
-    .catch((err) => showToast(err.message || "导出主题失败", true));
-}
-
-async function deleteTheme(tid, label) {
-  const ok = await confirmDialog(
-    `确定删除主题「${label}」吗？删除后不可恢复。`,
-    { title: "删除主题", okText: "删除", danger: true },
-  );
-  if (!ok) return;
-  try {
-    await apiPost(`theme/${tid}/delete`, {});
-  } catch (err) {
-    showToast(err.message || "删除主题失败", true);
-    return;
-  }
-  await loadThemeState();
-  renderThemeList(themeState);
-  showToast("主题已删除");
-}
-
-/* ---------- 主题文件编辑 ---------- */
-
-function openThemeFileDialog(tid, label) {
-  const t = (themeState.customThemes || []).find((x) => x.id === tid);
-  themeFileTarget = { id: tid, name: label, files: t ? t.files || [] : [] };
-  themeCurrentFile = "";
-  $("themeFileTitle").textContent = `编辑主题：${label}`;
-  $("themeFileContent").value = "";
-  $("themeFileSave").disabled = true;
-  renderThemeFileTree();
-  openModal("themeFileModal");
-}
-
-function renderThemeFileTree() {
-  const list = $("themeFileTree");
-  list.innerHTML = "";
-  if (!themeFileTarget || !themeFileTarget.files.length) {
-    list.innerHTML = '<div class="empty-state">主题内没有文件</div>';
-    return;
-  }
-  for (const f of themeFileTarget.files) {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className =
-      "theme-file-item" + (f.path === themeCurrentFile ? " active" : "");
-    item.title = f.path;
-    item.onclick = () => selectThemeFile(f.path);
-    const nameEl = document.createElement("span");
-    nameEl.textContent = f.path;
-    const sizeEl = document.createElement("span");
-    sizeEl.className = "theme-file-size";
-    sizeEl.textContent = f.size;
-    item.append(nameEl, sizeEl);
-    list.appendChild(item);
-  }
-}
-
-async function selectThemeFile(path) {
-  if (!themeFileTarget) return;
-  themeCurrentFile = path;
-  renderThemeFileTree();
-  try {
-    const res = await apiGet(`theme/${themeFileTarget.id}/file`, { path });
-    $("themeFileContent").value = res.content || "";
-  } catch (err) {
-    $("themeFileContent").value = "";
-    showToast(err.message || "读取文件失败", true);
-  }
-  $("themeFileSave").disabled = false;
-}
-
-async function saveThemeFile() {
-  if (!themeFileTarget || !themeCurrentFile) return;
-  const content = $("themeFileContent").value;
-  try {
-    await apiPost(`theme/${themeFileTarget.id}/file`, {
-      path: themeCurrentFile,
-      content,
-    });
-  } catch (err) {
-    showToast(err.message || "保存文件失败", true);
-    return;
-  }
-  // 保存的是主样式且当前激活该主题时即时应用
-  if (themeState.active === themeFileTarget.id) {
-    applyThemeCss(content);
-  }
-  showToast("文件已保存");
 }
 
 function collectForm() {
@@ -2982,20 +2670,9 @@ function bindEvents() {
     searchTimer = setTimeout(() => filterToolbox(e.target.value), 200);
   });
 
-  // 主题设置
-  $("themeBtn").onclick = openThemeDialog;
-  $("themeCancel").onclick = () => closeModal("themeModal");
-  $("themeOk").onclick = applyTheme;
-  $("themeExportBtn").onclick = exportTheme;
-  const themeFile = $("themeFile");
-  $("themeImportBtn").onclick = () => themeFile.click();
-  themeFile.onchange = (e) => {
-    importThemeFromFile(e.target.files[0]);
-    e.target.value = "";
-  };
-  // 主题文件编辑
-  $("themeFileCancel").onclick = () => closeModal("themeFileModal");
-  $("themeFileSave").onclick = saveThemeFile;
+  // 主题设置已移至独立的「Blockly 主题设置」页面，此处仅做引导提示
+  $("themeBtn").onclick = () =>
+    showToast("主题设置已移至独立的「Blockly 主题设置」页面");
 
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {
@@ -3036,7 +2713,7 @@ function bindEvents() {
     bindEvents();
     loadAvailableModels();
     await refreshPrograms();
-    await initTheme(); // 应用已保存的主题（自定义 CSS），保证刷新后主题保持
+    await initTheme(); // 应用激活主题的 CSS（主题设置见独立页面）
     if (programs.length) {
       await selectProgram(programs[0].id);
     }
