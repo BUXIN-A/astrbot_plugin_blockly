@@ -57,8 +57,8 @@ if "astrbot" not in sys.modules:
     web_mod.file_response = lambda *a, **k: None
     web_mod.json_response = lambda data, *a, **k: data
 
-    # request 的 json/files/query 可配置，便于测试需要请求体的 API
-    REQUEST_STATE = {"json": None, "files": {}, "query": {}}
+    # request 的 json/files/query/headers 可配置，便于测试需要请求体的 API
+    REQUEST_STATE = {"json": None, "files": {}, "query": {}, "headers": {}}
 
     async def _req_json(default=None):
         return REQUEST_STATE["json"] if REQUEST_STATE["json"] is not None else default
@@ -69,10 +69,14 @@ if "astrbot" not in sys.modules:
     def _req_query_get(key, default=None):
         return REQUEST_STATE["query"].get(key, default)
 
+    def _req_headers_get(key, default=None):
+        return REQUEST_STATE["headers"].get(key, default)
+
     web_mod.request = types.SimpleNamespace(
         json=staticmethod(_req_json),
         files=staticmethod(_req_files),
         query=types.SimpleNamespace(get=staticmethod(_req_query_get)),
+        headers=types.SimpleNamespace(get=staticmethod(_req_headers_get)),
     )
     path_mod.get_astrbot_plugin_data_path = lambda: str(
         Path(tempfile.gettempdir()) / "blockly_test_data"
@@ -562,3 +566,19 @@ def test_theme_file_binary_roundtrip(tmp_path):
     assert "content" in f2
     assert "base64" not in f2
     REQUEST_STATE["query"] = {}
+
+
+def test_theme_jump_url(tmp_path):
+    """主题跳转：携带 Dashboard token 返回主题设置页面 content 路径。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+    # 无认证头应拒绝
+    REQUEST_STATE["headers"] = {}
+    res = asyncio.run(plugin.api_theme_jump())
+    assert res is None
+    # 携带 Bearer token 返回可跳转 URL
+    REQUEST_STATE["headers"] = {"authorization": "Bearer abc.def.ghi"}
+    res = asyncio.run(plugin.api_theme_jump())
+    assert res["ok"] is True
+    assert "blockly-theme" in res["url"]
+    assert "asset_token=abc.def.ghi" in res["url"]
+    REQUEST_STATE["headers"] = {}

@@ -17,6 +17,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star
@@ -732,6 +733,27 @@ class BlocklyPlugin(Star):
         theme = self.themes.create(str(body.get("name") or ""))
         self.themes.set_active(theme["id"])
         return json_response({"ok": True, "active": theme["id"], **theme})
+
+    async def api_theme_jump(self) -> Any:
+        """返回跳转到「Blockly 主题设置」页面的完整 URL。
+
+        插件页 iframe 沙箱缺少 allow-same-origin，iframe 内整页导航插件页面资源
+        路径不会携带 Dashboard 授权头（localStorage/axios 只在父窗口可用），服务端
+        中间件会返回 401「未授权」。这里把当前请求携带的 Dashboard Bearer token 拼
+        入页面 content 路径的 ``asset_token`` 参数：服务端中间件会把该参数作为
+        Dashboard token 校验，从而放行整页导航加载目标页面。
+        """
+        auth = request.headers.get("authorization", "")
+        if not auth.lower().startswith("bearer "):
+            return error_response("未获取到 Dashboard 认证信息", status_code=401)
+        token = auth.split(" ", 1)[1].strip()
+        if not token:
+            return error_response("未获取到 Dashboard 认证信息", status_code=401)
+        url = (
+            f"/api/plugin/page/content/{PLUGIN_NAME}/blockly-theme/"
+            f"?asset_token={quote(token)}"
+        )
+        return json_response({"ok": True, "url": url})
 
     async def api_import_theme(self) -> Any:
         """导入主题 zip：解压为新的自定义主题目录并激活。

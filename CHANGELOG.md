@@ -22,7 +22,7 @@
 
 ### 修复
 - **导出主题报 `Request failed with status code 400`**：导出接口原实现只允许导出「当前激活」的自定义主题，激活内置主题时无可导出内容而报错。现支持通过 `tid` 参数导出任意已导入的自定义主题，前端导出按钮始终携带目标主题 id。
-- **「主题」按钮跳转报「未授权」**：插件页 iframe 沙箱缺少 `allow-same-origin`，直接整页请求插件页面资源路径（`/api/plugin/page/content/...`）时不带 Dashboard 授权头，服务端返回 `未授权`。现改为跳转到 Dashboard 前端路由 `/#/plugin-page/<插件>/blockly-theme`，由 Dashboard SPA 完成认证后加载主题设置页面。
+- **「主题」按钮跳转报「未授权」/白屏**：插件页 iframe 沙箱缺少 `allow-same-origin`，直接整页请求插件页面资源路径（`/api/plugin/page/content/...`）时不带 Dashboard 授权头，服务端返回 `未授权`；改跳 Dashboard 前端路由（`/#/plugin-page/...`）时 SPA 在沙箱 iframe 中无法访问 localStorage 又白屏。现改为由插件 API（`theme/jump`）取当前请求的 Dashboard Bearer token，拼入目标页面 content 路径的 `asset_token` 参数后整页跳转：服务端中间件会把该参数作为 Dashboard token 校验放行，页面正常加载。
 
 ### 优化
 - **积木提示精简**：移除「事件入口」「AI 回答」「AI 工具」「格式化文本」「全局函数」等积木 tooltip 中不必要的说明文字，保留关键信息。
