@@ -1776,6 +1776,58 @@ function filterToolbox(keyword) {
 let themeFileTarget = null; // 正在编辑的主题 {id, name, files}
 let themeCurrentFile = ""; // 当前编辑的文件相对路径
 
+// 主题设置界面豁免规则：自定义主题只影响 Blockly 主界面，
+// 主题设置/文件编辑弹窗始终使用页面默认样式，避免被主题改到无法操作。
+const THEME_UI_EXEMPT_CSS = `
+#themeModal, #themeFileModal { background: rgba(0,0,0,.45) !important; }
+#themeModal .modal, #themeFileModal .modal {
+  background: var(--panel) !important; color: var(--text) !important;
+  border: 1px solid var(--border) !important; border-radius: 12px !important;
+  box-shadow: var(--shadow) !important;
+}
+#themeModal .modal-title, #themeFileModal .modal-title { color: var(--text) !important; }
+#themeModal .modal-message, #themeFileModal .modal-message { color: var(--text) !important; }
+#themeModal .modal-message .strong, #themeFileModal .modal-message .strong { color: var(--danger) !important; }
+#themeModal label, #themeFileModal label { color: var(--muted) !important; }
+#themeModal .theme-item, #themeFileModal .theme-item {
+  background: var(--panel) !important; border-color: var(--border) !important; color: var(--text) !important;
+}
+#themeModal .theme-item:hover, #themeFileModal .theme-item:hover { border-color: var(--primary) !important; }
+#themeModal .theme-item:has(input:checked), #themeFileModal .theme-item:has(input:checked) {
+  border-color: var(--primary) !important; background: var(--primary-soft) !important;
+}
+#themeModal .theme-name, #themeFileModal .theme-name { color: var(--text) !important; }
+#themeModal .theme-desc, #themeFileModal .theme-desc { color: var(--muted) !important; }
+#themeModal .btn, #themeFileModal .btn {
+  background: var(--panel) !important; color: var(--text) !important; border-color: var(--border) !important;
+}
+#themeModal .btn:hover, #themeFileModal .btn:hover { border-color: var(--primary) !important; }
+#themeModal .btn-primary, #themeFileModal .btn-primary {
+  background: var(--primary) !important; border-color: var(--primary) !important; color: #fff !important;
+}
+#themeModal .btn-danger, #themeFileModal .btn-danger {
+  background: var(--danger) !important; border-color: var(--danger) !important; color: #fff !important;
+}
+#themeModal .input, #themeModal textarea, #themeModal select,
+#themeFileModal .input, #themeFileModal textarea, #themeFileModal select {
+  background: var(--bg) !important; color: var(--text) !important; border-color: var(--border) !important;
+}
+#themeModal .theme-icon-btn, #themeFileModal .theme-icon-btn {
+  background: var(--panel) !important; color: var(--muted-strong) !important; border-color: var(--border) !important;
+}
+#themeModal .theme-icon-btn:hover, #themeFileModal .theme-icon-btn:hover {
+  color: var(--primary) !important; border-color: var(--primary) !important;
+}
+#themeModal .theme-file-item, #themeFileModal .theme-file-item {
+  background: var(--panel) !important; color: var(--text) !important; border-color: transparent !important;
+}
+#themeModal .theme-file-item:hover, #themeModal .theme-file-item.active,
+#themeFileModal .theme-file-item:hover, #themeFileModal .theme-file-item.active {
+  border-color: var(--primary) !important; background: var(--primary-soft) !important;
+}
+#themeModal .theme-file-size, #themeFileModal .theme-file-size { color: var(--muted) !important; }
+`;
+
 async function initTheme() {
   const st = await loadThemeState();
   if (!st) return;
@@ -1809,6 +1861,14 @@ function applyThemeCss(css) {
     document.head.appendChild(style);
   }
   style.textContent = css || "";
+  // 主题设置界面豁免规则始终追加在主题 CSS 之后，保证弹窗不被主题改动
+  let exempt = document.getElementById("themeExempt");
+  if (!exempt) {
+    exempt = document.createElement("style");
+    exempt.id = "themeExempt";
+    document.head.appendChild(exempt);
+  }
+  exempt.textContent = THEME_UI_EXEMPT_CSS;
 }
 
 async function openThemeDialog() {
