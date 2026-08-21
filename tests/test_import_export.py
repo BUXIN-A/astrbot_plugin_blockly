@@ -7,7 +7,6 @@ import asyncio
 import sys
 import types
 import tempfile
-import time
 from pathlib import Path
 
 # main.py 依赖 astrbot 环境，这里用轻量 stub 让模块可导入测试。
@@ -38,6 +37,7 @@ if "astrbot" not in sys.modules:
     def _noop_decorator(*args, **kwargs):
         def deco(fn):
             return fn
+
         return deco
 
     filter_mod.PlatformAdapterType = object
@@ -53,8 +53,12 @@ if "astrbot" not in sys.modules:
     web_mod.error_response = lambda *a, **k: None
     web_mod.file_response = lambda *a, **k: None
     web_mod.json_response = lambda data, *a, **k: data
-    web_mod.request = types.SimpleNamespace(json=staticmethod(lambda default=None: default), files=staticmethod(lambda: {}))
-    path_mod.get_astrbot_plugin_data_path = lambda: str(Path(tempfile.gettempdir()) / "blockly_test_data")
+    web_mod.request = types.SimpleNamespace(
+        json=staticmethod(lambda default=None: default), files=staticmethod(lambda: {})
+    )
+    path_mod.get_astrbot_plugin_data_path = lambda: str(
+        Path(tempfile.gettempdir()) / "blockly_test_data"
+    )
     star_handler_mod.star_handlers_registry = types.SimpleNamespace(
         get_handlers_by_module_name=lambda m: [],
         _handlers=[],
@@ -79,7 +83,9 @@ if "astrbot" not in sys.modules:
     sys.modules["astrbot.api.web"] = web_mod
     sys.modules["astrbot.core"] = core_mod
     sys.modules["astrbot.core.star"] = star_f_mod
-    sys.modules["astrbot.core.star.filter"] = types.ModuleType("astrbot.core.star.filter")
+    sys.modules["astrbot.core.star.filter"] = types.ModuleType(
+        "astrbot.core.star.filter"
+    )
     sys.modules["astrbot.core.star.filter.command"] = filter_cmd_mod
     sys.modules["astrbot.core.star.star_handler"] = star_handler_mod
     sys.modules["astrbot.core.utils"] = utils_mod

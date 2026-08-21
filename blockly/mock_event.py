@@ -121,6 +121,14 @@ class MockEvent:
     def plain_result(self, text: str) -> _MockResult:
         return _MockResult(chain=[text]).stop_event()
 
+    def image_result(self, url_or_path: str) -> _MockResult:
+        """模拟仅包含图片的消息结果。"""
+        return _MockResult(chain=[f"[图片: {url_or_path}]"])
+
+    def chain_result(self, chain) -> _MockResult:
+        """模拟包含指定消息链的结果。"""
+        return _MockResult(chain=list(chain))
+
     def get_sender_name(self) -> str:
         return self._sender_name
 
@@ -160,15 +168,13 @@ class MockContext:
     async def get_current_chat_provider_id(self, umo=None) -> str:
         return self.current_provider
 
-    async def llm_generate(self, chat_provider_id=None, prompt="", model=None, **kwargs):
+    async def llm_generate(
+        self, chat_provider_id=None, prompt="", model=None, **kwargs
+    ):
         class _Resp:
             completion_text = ""
 
-        key = (
-            f"{chat_provider_id}:{model}"
-            if model
-            else str(chat_provider_id or "")
-        )
+        key = f"{chat_provider_id}:{model}" if model else str(chat_provider_id or "")
         if key in self.chat_failure_models:
             raise RuntimeError(f"模型 {model or chat_provider_id} 调用失败")
 
@@ -196,7 +202,11 @@ class MockContext:
         lines = []
         for tool in tool_list:
             try:
-                ret = await tool.handler(event) if getattr(tool, "handler", None) else None
+                ret = (
+                    await tool.handler(event)
+                    if getattr(tool, "handler", None)
+                    else None
+                )
                 lines.append(f"[工具 {tool.name}] {_tool_result_to_text(ret)}")
             except Exception as exc:  # noqa: BLE001 - 单工具失败不影响其他工具
                 lines.append(f"[工具 {tool.name}] 错误：{exc}")
@@ -224,9 +234,7 @@ def _tool_result_to_text(ret) -> str:
         return ret
     content = getattr(ret, "content", None)
     if isinstance(content, list):
-        return "\n".join(
-            (getattr(c, "text", None) or str(c)) for c in content
-        )
+        return "\n".join((getattr(c, "text", None) or str(c)) for c in content)
     return str(ret)
 
 
@@ -236,6 +244,14 @@ def _chain_to_text(chain) -> str:
         chain_list = [chain]
     parts = []
     for comp in chain_list:
+        seg_type = str(getattr(getattr(comp, "type", None), "name", None) or "").lower()
+        if seg_type in ("image", "record"):
+            label = "图片" if seg_type == "image" else "语音"
+            src = getattr(comp, "file", None)
+            if src is None:
+                src = getattr(comp, "text", None)
+            parts.append(f"[{label}: {src}]")
+            continue
         text = getattr(comp, "text", None)
         if text is not None:
             parts.append(str(text))

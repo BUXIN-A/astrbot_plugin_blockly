@@ -1,6 +1,7 @@
 """Blockly 受限执行引擎的单元测试。"""
 
 import asyncio
+from pathlib import Path
 
 from blockly.program import BlocklyProgram
 from blockly.runtime import _assert_safe_source, wrap_code
@@ -69,8 +70,7 @@ def test_empty_program_does_not_stop():
 def test_blockly_with_blocks_but_no_code_reports_error():
     """积木程序有积木内容但缺少生成的 code 时，应给出明确错误而非静默跳过。"""
     workspace = (
-        '{"blocks": {"languageVersion": 0, '
-        '"blocks": [{"type": "blockly_event"}]}}'
+        '{"blocks": {"languageVersion": 0, "blocks": [{"type": "blockly_event"}]}}'
     )
     program = BlocklyProgram(content_type="blockly", workspace=workspace, code="")
     result = asyncio.run(run_sim(program, message="hi"))
@@ -457,3 +457,161 @@ def test_ai_tool_empty_name_raises():
     program = BlocklyProgram(code="_blk.tool('', 'x', lambda: None, True)")
     result = asyncio.run(run_sim(program, message="x"))
     assert "不能为空" in result["error"]
+
+
+def test_reply_image_and_voice():
+    """回复积木支持图片/语音类型（模拟环境显示为 [图片/语音: 地址]）。"""
+    program = BlocklyProgram(
+        code="await _blk.reply('https://example.com/a.png', 'image')"
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert any("[图片:" in r for r in result["replies"])
+
+    program2 = BlocklyProgram(
+        code="await _blk.reply('https://example.com/a.mp3', 'voice')"
+    )
+    result2 = asyncio.run(run_sim(program2, message="x"))
+    assert any("[语音:" in r for r in result2["replies"])
+
+
+def test_return_msg_image_stops():
+    """返回消息积木选择图片类型时同样劫持事件。"""
+    program = BlocklyProgram(
+        code="await _blk.return_msg('https://example.com/a.png', 'image')"
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert result["stopped"] is True
+    assert any("[图片:" in r for r in result["replies"])
+
+
+def test_send_image_and_voice():
+    """主动发送积木支持图片/语音类型。"""
+    program = BlocklyProgram(
+        code="await _blk.send('mock:group:g1', 'https://example.com/a.png', 'image')"
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert result["sends"] and any(
+        "mock:group:g1" == umo and "[图片:" in text for umo, text in result["sends"]
+    )
+
+
+def test_global_store_set_get_delete():
+    """持久化变量设置/读取/删除（JSON 落盘）。"""
+    import tempfile
+
+    from blockly.runtime import init_global_store
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store_path = str(Path(tmp) / "global_store.json")
+        init_global_store(store_path)
+
+        program = BlocklyProgram(
+            code="""
+_blk.store_set('count', 3)
+_blk.store_set('name', 'Alice')
+await _blk.reply(str(_blk.store_get('count')) + ',' + str(_blk.store_get('name')) + ',' + str(_blk.store_get('missing', 'none')))
+_blk.store_del('name')
+await _blk.reply(str(_blk.store_get('name', 'gone')))
+""",
+        )
+        result = asyncio.run(run_sim(program, message="x"))
+        assert result["error"] == ""
+        assert "3,Alice,none" in result["replies"]
+        assert "gone" in result["replies"]
+
+
+def test_global_store_persists_across_reload():
+    """重新初始化（模拟重启）后持久化变量仍然存在。"""
+    import tempfile
+
+    from blockly.runtime import init_global_store
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store_path = str(Path(tmp) / "global_store.json")
+        init_global_store(store_path)
+
+        writer = BlocklyProgram(code="_blk.store_set('count', 7)")
+        asyncio.run(run_sim(writer, message="x"))
+
+        # 模拟重启：重新初始化同一路径
+        init_global_store(store_path)
+        reader = BlocklyProgram(code="await _blk.reply(str(_blk.store_get('count')))")
+        result = asyncio.run(run_sim(reader, message="x"))
+        assert "7" in result["replies"]
+
+
+def test_global_func_define_and_call():
+    """全局函数定义后可被另一个程序调用并返回结果。"""
+    from blockly.runtime import _clear_global_funcs
+
+    _clear_global_funcs()
+    define = BlocklyProgram(
+        code="""
+async def blk_gf_test(a, b):
+    return a + b
+_blk.define_global_func('add', blk_gf_test)
+await _blk.reply('defined')
+""",
+    )
+    result = asyncio.run(run_sim(define, message="x"))
+    assert result["error"] == ""
+
+    call = BlocklyProgram(
+        code="await _blk.reply(str(await _blk.global_call('add', 1, 2)))",
+    )
+    result2 = asyncio.run(run_sim(call, message="x"))
+    assert "3" in result2["replies"]
+
+
+def test_global_func_missing_raises():
+    """调用未注册的全局函数时给出明确错误。"""
+    from blockly.runtime import _clear_global_funcs
+
+    _clear_global_funcs()
+    program = BlocklyProgram(code="await _blk.global_call('nope')")
+    result = asyncio.run(run_sim(program, message="x"))
+    assert "未找到全局函数" in result["error"]
+
+
+def test_global_func_generated_code_compiles():
+    """前端「全局函数定义/调用」生成器输出的代码可被沙箱编译并执行。"""
+    from blockly.runtime import _clear_global_funcs
+
+    _clear_global_funcs()
+    code = (
+        "async def blk_gf_abc(a, b):\n"
+        "    return a + b\n"
+        "_blk.define_global_func('add', blk_gf_abc)\n"
+        "if _blk.event_type == 'message':\n"
+        "    await _blk.reply(str(await _blk.global_call('add', 2, 3)))\n"
+    )
+    source = wrap_code(code)
+    _assert_safe_source(source)
+    compile(source, "<test>", "exec")
+    program = BlocklyProgram(code=code)
+    result = asyncio.run(run_sim(program, message="hi"))
+    assert result["error"] == ""
+    assert any("5" in r for r in result["replies"])
+
+
+def test_store_generated_code_compiles():
+    """前端「持久化变量」生成器输出的代码可被沙箱编译并执行。"""
+    import tempfile
+
+    from blockly.runtime import init_global_store
+
+    with tempfile.TemporaryDirectory() as tmp:
+        init_global_store(str(Path(tmp) / "global_store.json"))
+        code = (
+            "_blk.store_set('count', 3)\n"
+            "if _blk.event_type == 'message':\n"
+            "    await _blk.reply(str(_blk.store_get('count', 0)))\n"
+            "_blk.store_del('count')\n"
+        )
+        source = wrap_code(code)
+        _assert_safe_source(source)
+        compile(source, "<test>", "exec")
+        program = BlocklyProgram(code=code)
+        result = asyncio.run(run_sim(program, message="hi"))
+        assert result["error"] == ""
+        assert any("3" in r for r in result["replies"])

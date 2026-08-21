@@ -17,8 +17,10 @@ import logging
 import math
 import random
 import textwrap
+import threading
 import time
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, ClassVar
 
 from .program import CONTENT_BLOCKLY, BlocklyProgram
@@ -117,24 +119,123 @@ SAFE_BUILTINS: dict[str, Any] = {
 }
 
 
-def _make_chain(text: str):
-    """构造消息链。优先使用 AstrBot 的 MessageChain，测试环境下回退为鸭子类型。"""
+def _make_media_component(value, component_cls):
+    """按值是否为 URL 构造网络/本地媒体组件（图片/语音共用）。"""
+    v = str(value)
+    if v.startswith("http://") or v.startswith("https://"):
+        return component_cls.fromURL(v)
+    return component_cls.fromFileSystem(v)
+
+
+def _make_chain(text: str, kind: str = "text"):
+    """构造消息链（支持文本/图片/语音）。
+
+    Args:
+        text: 消息内容；图片/语音时是 URL 或本地文件路径。
+        kind: 消息类型：text / image / voice。
+
+    Returns:
+        优先使用 AstrBot 的 MessageChain，测试环境下回退为鸭子类型。
+    """
+    kind = str(kind or "text").strip().lower() or "text"
     try:
-        from astrbot.api.message_components import Plain
+        from astrbot.api.message_components import Image, Plain, Record
         from astrbot.core.message.message_event_result import MessageChain
 
+        if kind == "image":
+            return MessageChain([_make_media_component(text, Image)])
+        if kind == "voice":
+            return MessageChain([_make_media_component(text, Record)])
         return MessageChain([Plain(str(text))])
     except ImportError:  # pragma: no cover - 仅在脱离 AstrBot 的测试环境中触发
 
         class _Plain:
             def __init__(self, t: str):
                 self.text = t
+                self.type = type("T", (), {"name": "plain"})()
+
+        class _Media:
+            def __init__(self, t: str, kind: str):
+                self.text = t
+                self.type = type("T", (), {"name": kind})()
 
         class _Chain:
-            def __init__(self, t: str):
-                self.chain = [_Plain(t)]
+            def __init__(self, t: str, kind: str):
+                if kind == "text":
+                    self.chain = [_Plain(t)]
+                else:
+                    # 组件类型名：图片 image、语音 record（与真实组件保持一致）
+                    self.chain = [_Media(t, "record" if kind == "voice" else kind)]
 
-        return _Chain(str(text))
+        return _Chain(str(text), kind)
+
+
+class _GlobalStore:
+    """全局持久化数据存储（跨程序共享、重启不重置）。
+
+    数据以 JSON 文件落盘在插件数据目录；读写用线程锁保护，文件很小，同步写可接受。
+    """
+
+    def __init__(self, path: str | Path) -> None:
+        self._path = Path(path)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._data: dict[str, Any] = {}
+        self._load()
+
+    def _load(self) -> None:
+        try:
+            if self._path.exists():
+                raw = json.loads(self._path.read_text(encoding="utf-8"))
+                if isinstance(raw, dict):
+                    self._data = raw
+        except (OSError, ValueError) as exc:
+            logger.warning("加载全局持久化数据失败：%s", exc)
+
+    def _save(self) -> None:
+        tmp = self._path.with_suffix(".json.tmp")
+        tmp.write_text(
+            json.dumps(self._data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        tmp.replace(self._path)
+
+    def get(self, name: str, default: Any = None) -> Any:
+        with self._lock:
+            return self._data.get(name, default)
+
+    def set(self, name: str, value: Any) -> None:
+        with self._lock:
+            self._data[name] = value
+            self._save()
+
+    def delete(self, name: str) -> bool:
+        with self._lock:
+            if name not in self._data:
+                return False
+            del self._data[name]
+            self._save()
+            return True
+
+
+_global_store: _GlobalStore | None = None
+
+
+def init_global_store(path: str | Path) -> None:
+    """初始化全局持久化数据存储（插件启动时调用）。"""
+    global _global_store
+    _global_store = _GlobalStore(path)
+
+
+# 全局函数注册表：定义块注册的函数供所有程序调用（进程内存，重启后由程序重新注册）。
+_GLOBAL_FUNCS: dict[str, Any] = {}
+_GLOBAL_FUNCS_LOCK = threading.Lock()
+
+
+def _clear_global_funcs() -> None:
+    """清空全局函数注册表（仅测试用）。"""
+    with _GLOBAL_FUNCS_LOCK:
+        _GLOBAL_FUNCS.clear()
 
 
 def _parse_allowlist(allowed: list[str]) -> list[tuple[str | None, str]]:
@@ -233,7 +334,9 @@ class BlocklyRuntime:
         self._event = event
         self._program = program
         self.event_type = resolve_event_kind(event)
-        self._tools: dict[str, Any] = {}  # 「AI 工具」积木注册的工具（名称 -> FunctionTool）
+        self._tools: dict[
+            str, Any
+        ] = {}  # 「AI 工具」积木注册的工具（名称 -> FunctionTool）
         self._tool_result: Any = None  # 当前工具调用通过「设置工具返回值」写入的值
         self._tool_return_set = False  # 本次工具调用是否设置了返回值
 
@@ -302,7 +405,9 @@ class BlocklyRuntime:
 
     def get_message_id(self) -> str:
         """本条消息/被撤回消息的 ID。"""
-        message_id = getattr(getattr(self._event, "message_obj", None), "message_id", None)
+        message_id = getattr(
+            getattr(self._event, "message_obj", None), "message_id", None
+        )
         if message_id:
             return str(message_id)
         return self._raw_get("message_id")
@@ -329,17 +434,17 @@ class BlocklyRuntime:
         return self._event.is_private_chat()
 
     # ---------- 动作 ----------
-    async def reply(self, text: Any) -> None:
-        """回复一条消息，并继续事件传播。"""
-        await self._event.send(_make_chain(text))
+    async def reply(self, text: Any, kind: Any = "text") -> None:
+        """回复一条消息（支持文本/图片/语音），并继续事件传播。"""
+        await self._event.send(_make_chain(text, kind))
 
-    async def return_msg(self, text: Any) -> None:
+    async def return_msg(self, text: Any, kind: Any = "text") -> None:
         """返回消息：设置回复结果并劫持事件（阻止 AstrBot 继续处理）。
 
         不调用 ``send`` 主动发送，而是设置结果由 AstrBot 的响应阶段统一发送，
-        避免在同一会话中出现重复回复。
+        避免在同一会话中出现重复回复。``kind`` 支持 text / image / voice。
         """
-        result = self._event.plain_result(str(text)).stop_event()
+        result = self._event.chain_result(_make_chain(text, kind).chain).stop_event()
         self._event.set_result(result)
 
     def forward(self) -> None:
@@ -350,9 +455,51 @@ class BlocklyRuntime:
         """停止事件传播。"""
         self._event.stop_event()
 
-    async def send(self, umo: Any, text: Any) -> None:
-        """主动发送消息到指定会话（unified_msg_origin）。"""
-        await self._ctx.send_message(str(umo), _make_chain(text))
+    async def send(self, umo: Any, text: Any, kind: Any = "text") -> None:
+        """主动发送消息到指定会话（支持文本/图片/语音）。"""
+        await self._ctx.send_message(str(umo), _make_chain(text, kind))
+
+    # ---------- 全局持久化数据 ----------
+    def store_get(self, name: Any, default: Any = None) -> Any:
+        """读取全局持久化变量（跨程序共享、重启不重置）。"""
+        if _global_store is None:
+            return default
+        return _global_store.get(str(name), default)
+
+    def store_set(self, name: Any, value: Any) -> None:
+        """写入全局持久化变量并立即落盘。"""
+        if _global_store is None:
+            raise RuntimeError("全局持久化存储未初始化")
+        _global_store.set(str(name), value)
+
+    def store_del(self, name: Any) -> bool:
+        """删除全局持久化变量，返回是否存在。"""
+        if _global_store is None:
+            return False
+        return _global_store.delete(str(name))
+
+    # ---------- 全局函数 ----------
+    def define_global_func(self, name: Any, fn: Any) -> None:
+        """注册一个全局函数（定义块生成代码调用），供所有程序调用。"""
+        name = str(name or "").strip()
+        if not name:
+            raise RuntimeError("全局函数名称不能为空")
+        with _GLOBAL_FUNCS_LOCK:
+            _GLOBAL_FUNCS[name] = fn
+
+    async def global_call(self, name: Any, *args: Any) -> Any:
+        """调用已注册的全局函数并返回其结果。"""
+        name = str(name or "").strip()
+        with _GLOBAL_FUNCS_LOCK:
+            fn = _GLOBAL_FUNCS.get(name)
+        if fn is None:
+            raise RuntimeError(
+                f"未找到全局函数「{name}」：请先启用并运行包含该函数定义的程序"
+            )
+        result = fn(*args)
+        if inspect.isawaitable(result):
+            result = await result
+        return result
 
     def _parse_models(self, raw: Any) -> list[tuple[str | None, str]]:
         """解析 AI 积木上「指定模型」字段。
@@ -386,7 +533,9 @@ class BlocklyRuntime:
         return ordered
 
     # ---------- AI 工具（「AI 工具」积木） ----------
-    def tool(self, name: Any, description: Any, handler: Any, return_content: Any = True) -> None:
+    def tool(
+        self, name: Any, description: Any, handler: Any, return_content: Any = True
+    ) -> None:
         """注册一个「AI 工具」：AI 可根据描述决定何时调用 handler。
 
         ``handler`` 为积木生成的 ``async def`` 函数，无参数；调用期间可通过
@@ -489,9 +638,7 @@ class BlocklyRuntime:
                 return resp.completion_text
             except Exception as exc:  # noqa: BLE001 - 单模型失败切换到下一个
                 errors.append(f"{model}: {exc}")
-        raise RuntimeError(
-            f"指定模型全部请求失败：{'；'.join(errors)}"
-        )
+        raise RuntimeError(f"指定模型全部请求失败：{'；'.join(errors)}")
 
     async def _get_current_provider_id(self) -> str:
         """获取当前会话使用的提供商 ID；无法获取时返回空字符串。"""
@@ -616,10 +763,7 @@ async def run_program(
     """
     code = (program.code or "").strip()
     if not code:
-        if (
-            program.content_type == CONTENT_BLOCKLY
-            and _has_blocks(program.workspace)
-        ):
+        if program.content_type == CONTENT_BLOCKLY and _has_blocks(program.workspace):
             raise RuntimeError(
                 "积木程序缺少已生成的代码（code 为空）：请在 WebUI 打开该程序并保存一次，"
                 "或重新导入包含 code 的数据"

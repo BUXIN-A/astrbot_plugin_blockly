@@ -250,6 +250,19 @@
     </div>
   </div>
 
+  <!-- 全局函数参数编辑弹窗 -->
+  <div class="modal-overlay hidden" id="globalFuncModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-title" id="globalFuncTitle">全局函数参数</div>
+      <div class="modal-message">每行一个参数名（留空表示无参数）。调用块中参数按顺序传入实际值。</div>
+      <textarea class="input fmt-textarea" id="globalFuncParams" rows="6" spellcheck="false" placeholder="参数1&#10;参数2"></textarea>
+      <div class="modal-actions">
+        <button class="btn" id="globalFuncCancel">取消</button>
+        <button class="btn btn-primary" id="globalFuncOk">确定</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 描述编辑弹窗 -->
   <div class="modal-overlay hidden" id="descModal">
     <div class="modal" role="dialog" aria-modal="true">
@@ -309,6 +322,16 @@
       <block type="blockly_get_message_id"></block>
       <block type="blockly_get_target_id"></block>
       <block type="blockly_get_operator_id"></block>
+    </category>
+    <category name="持久化" colour="#5B6BA5">
+      <block type="blockly_store_set"></block>
+      <block type="blockly_store_get"></block>
+      <block type="blockly_store_del"></block>
+    </category>
+    <category name="全局函数" colour="#8A5BA5">
+      <block type="blockly_global_func"></block>
+      <block type="blockly_global_func_call"></block>
+      <block type="blockly_global_func_return"></block>
     </category>
     <category name="逻辑" colour="#5C81A6">
       <block type="controls_if"></block>

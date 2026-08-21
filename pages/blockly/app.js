@@ -376,23 +376,45 @@ function defineBlocks() {
     },
     {
       type: "blockly_reply",
-      message0: "回复 %1",
-      args0: [{ type: "input_value", name: "TEXT", check: "String" }],
+      message0: "回复 %1 %2",
+      args0: [
+        { type: "input_value", name: "TEXT", check: "String" },
+        {
+          type: "field_dropdown",
+          name: "KIND",
+          options: [
+            ["文本", "text"],
+            ["图片", "image"],
+            ["语音", "voice"],
+          ],
+        },
+      ],
       previousStatement: null,
       nextStatement: null,
       colour: 210,
       tooltip:
-        "回复一条消息但不劫持事件（其他匹配程序仍会执行；AstrBot 将不再回复）。",
+        "回复一条消息但不劫持事件（其他匹配程序仍会执行；AstrBot 将不再回复）。「图片/语音」时文本填入 URL 或本地文件路径。",
     },
     {
       type: "blockly_return_msg",
-      message0: "返回消息 %1",
-      args0: [{ type: "input_value", name: "TEXT", check: "String" }],
+      message0: "返回消息 %1 %2",
+      args0: [
+        { type: "input_value", name: "TEXT", check: "String" },
+        {
+          type: "field_dropdown",
+          name: "KIND",
+          options: [
+            ["文本", "text"],
+            ["图片", "image"],
+            ["语音", "voice"],
+          ],
+        },
+      ],
       previousStatement: null,
       nextStatement: null,
       colour: 210,
       tooltip:
-        "回复消息并劫持事件（返回消息模式）：阻止 AstrBot 继续处理本次消息。",
+        "回复消息并劫持事件（返回消息模式）：阻止 AstrBot 继续处理本次消息。「图片/语音」时文本填入 URL 或本地文件路径。",
     },
     {
       type: "blockly_forward",
@@ -412,15 +434,25 @@ function defineBlocks() {
     },
     {
       type: "blockly_send",
-      message0: "向会话 %1 发送 %2",
+      message0: "向会话 %1 发送 %2 %3",
       args0: [
         { type: "input_value", name: "SESSION", check: "String" },
         { type: "input_value", name: "TEXT", check: "String" },
+        {
+          type: "field_dropdown",
+          name: "KIND",
+          options: [
+            ["文本", "text"],
+            ["图片", "image"],
+            ["语音", "voice"],
+          ],
+        },
       ],
       previousStatement: null,
       nextStatement: null,
       colour: 210,
-      tooltip: "主动发送消息到指定会话（unified_msg_origin）。",
+      tooltip:
+        "主动发送消息到指定会话（unified_msg_origin）。「图片/语音」时文本填入 URL 或本地文件路径。",
     },
     {
       type: "blockly_sleep",
@@ -532,6 +564,67 @@ function defineBlocks() {
       tooltip:
         "把该值作为本次工具调用的结果返回给 AI（需放在「AI 工具」块内部）。",
     },
+    {
+      type: "blockly_store_set",
+      message0: "持久化变量设置 %1 为 %2",
+      args0: [
+        {
+          type: "field_input",
+          name: "NAME",
+          text: "count",
+          spellcheck: false,
+        },
+        { type: "input_value", name: "VALUE" },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: 230,
+      tooltip:
+        "写入全局持久化变量：重启不重置，所有程序（文件）共享访问。",
+    },
+    {
+      type: "blockly_store_get",
+      message0: "持久化变量 %1（默认 %2）",
+      args0: [
+        {
+          type: "field_input",
+          name: "NAME",
+          text: "count",
+          spellcheck: false,
+        },
+        { type: "input_value", name: "DEFAULT" },
+      ],
+      output: null,
+      colour: 230,
+      tooltip:
+        "读取全局持久化变量的值；变量不存在时返回默认值。",
+    },
+    {
+      type: "blockly_store_del",
+      message0: "删除持久化变量 %1",
+      args0: [
+        {
+          type: "field_input",
+          name: "NAME",
+          text: "count",
+          spellcheck: false,
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: 230,
+      tooltip: "删除全局持久化变量。",
+    },
+    {
+      type: "blockly_global_func_return",
+      message0: "全局函数返回 %1",
+      args0: [{ type: "input_value", name: "VALUE" }],
+      previousStatement: null,
+      nextStatement: null,
+      colour: 230,
+      tooltip:
+        "设置全局函数的返回值（放在「全局函数定义」块内部使用，可提前返回）。",
+    },
   ]);
 
   /* ---------- JS 自定义块（含弹窗配置/动态输入） ---------- */
@@ -629,6 +722,100 @@ function defineBlocks() {
       openFormatTextDialog(this);
     },
   };
+
+  // 「全局函数定义」块：定义可被任意程序调用的函数。
+  // 参数名通过齿轮弹窗编辑（每行一个参数名），保存进块级 extra state。
+  Blockly.Blocks["blockly_global_func"] = {
+    init: function () {
+      this.appendDummyInput()
+        .appendField("全局函数定义")
+        .appendField(new Blockly.FieldTextInput("my_func"), "NAME");
+      this.appendDummyInput().appendField(
+        new Blockly.FieldImage(
+          IMG_GEAR,
+          18,
+          18,
+          "编辑参数",
+          () => this.openParams_()
+        )
+      );
+      this.paramsLabel_ = new Blockly.FieldLabel("");
+      this.appendDummyInput().appendField(this.paramsLabel_, "PARAMS");
+      this.appendStatementInput("DO").appendField("执行");
+      this.setPreviousStatement(true);
+      this.setNextStatement(true);
+      this.setColour(230);
+      this.params_ = [];
+      this.setTooltip(
+        "定义全局函数：保存并运行一次本程序后，其他所有程序都能调用它。函数体内可使用「全局函数返回」块设置返回值。"
+      );
+    },
+    saveExtraState: function () {
+      return { params: this.params_ };
+    },
+    loadExtraState: function (state) {
+      this.params_ = Array.isArray(state && state.params)
+        ? state.params.slice()
+        : [];
+      this.updateShape_();
+    },
+    updateShape_: function () {
+      this.paramsLabel_.setValue(
+        this.params_.length ? "参数：" + this.params_.join("，") : ""
+      );
+    },
+    openParams_: function () {
+      openGlobalFuncParamsDialog(this);
+    },
+  };
+
+  // 「调用全局函数」块：按齿轮弹窗中设置的参数名生成对应数量的输入端口。
+  Blockly.Blocks["blockly_global_func_call"] = {
+    init: function () {
+      this.appendDummyInput()
+        .appendField("调用全局函数")
+        .appendField(new Blockly.FieldTextInput("my_func"), "NAME");
+      this.appendDummyInput().appendField(
+        new Blockly.FieldImage(
+          IMG_GEAR,
+          18,
+          18,
+          "编辑参数",
+          () => this.openParams_()
+        )
+      );
+      this.setOutput(true);
+      this.setColour(230);
+      this.params_ = [];
+      this.setTooltip(
+        "调用已注册的全局函数并返回其结果。点击齿轮设置参数（每行一个参数名）；参数值按顺序传入。"
+      );
+    },
+    saveExtraState: function () {
+      return { params: this.params_ };
+    },
+    loadExtraState: function (state) {
+      this.params_ = Array.isArray(state && state.params)
+        ? state.params.slice()
+        : [];
+      this.updateShape_();
+    },
+    updateShape_: function () {
+      // 仅移除动态生成的 arg 输入端口（拖出/加载时会重建）。
+      for (let i = this.inputList.length - 1; i >= 0; i--) {
+        const input = this.inputList[i];
+        if (typeof input.name === "string" && input.name.startsWith("arg")) {
+          this.removeInput(input.name, true);
+        }
+      }
+      this.params_.forEach((p, i) => {
+        this.appendValueInput("arg" + i).appendField(p || "参数" + (i + 1));
+      });
+    },
+    openParams_: function () {
+      openGlobalFuncParamsDialog(this);
+    },
+  };
 }
 
 function registerPythonGenerator() {
@@ -679,12 +866,14 @@ function registerPythonGenerator() {
 
   py.forBlock["blockly_reply"] = function (block) {
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
-    return `await _blk.reply(${text})\n`;
+    const kind = block.getFieldValue("KIND") || "text";
+    return `await _blk.reply(${text}, '${kind}')\n`;
   };
 
   py.forBlock["blockly_return_msg"] = function (block) {
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
-    return `await _blk.return_msg(${text})\n`;
+    const kind = block.getFieldValue("KIND") || "text";
+    return `await _blk.return_msg(${text}, '${kind}')\n`;
   };
 
   py.forBlock["blockly_forward"] = () => "_blk.forward()\n";
@@ -693,7 +882,8 @@ function registerPythonGenerator() {
   py.forBlock["blockly_send"] = function (block) {
     const session = py.valueToCode(block, "SESSION", py.ORDER_NONE) || "''";
     const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
-    return `await _blk.send(${session}, ${text})\n`;
+    const kind = block.getFieldValue("KIND") || "text";
+    return `await _blk.send(${session}, ${text}, '${kind}')\n`;
   };
 
   py.forBlock["blockly_sleep"] = function (block) {
@@ -814,6 +1004,91 @@ function registerPythonGenerator() {
   py.forBlock["blockly_tool_return"] = function (block) {
     const val = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
     return "_blk.tool_return(" + val + ")\n";
+  };
+
+  // 将文本转义为合法 Python 标识符（非法字符替换为下划线）。
+  function safeIdent(text) {
+    let s = String(text || "").replace(/[^A-Za-z0-9_]/g, "_");
+    if (!/^[A-Za-z_]/.test(s)) s = "f_" + s;
+    return s;
+  }
+
+  py.forBlock["blockly_store_set"] = function (block) {
+    const name = block.getFieldValue("NAME") || "";
+    const value = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
+    return `_blk.store_set(${quotePython(name)}, ${value})\n`;
+  };
+
+  py.forBlock["blockly_store_get"] = function (block) {
+    const name = block.getFieldValue("NAME") || "";
+    const def = py.valueToCode(block, "DEFAULT", py.ORDER_NONE) || "None";
+    return [
+      `_blk.store_get(${quotePython(name)}, ${def})`,
+      py.ORDER_FUNCTION_CALL,
+    ];
+  };
+
+  py.forBlock["blockly_store_del"] = function (block) {
+    const name = block.getFieldValue("NAME") || "";
+    return `_blk.store_del(${quotePython(name)})\n`;
+  };
+
+  // 「全局函数定义」块：包成独立 async def 后注册到全局注册表。
+  // 内部函数名用块 id 保证唯一，对外名字由用户 NAME 字段决定。
+  py.forBlock["blockly_global_func"] = function (block) {
+    const name = block.getFieldValue("NAME") || "my_func";
+    const seen = new Set();
+    const params = (block.params_ || []).map((p, i) => {
+      let id = safeIdent(p) || "arg" + (i + 1);
+      while (seen.has(id)) {
+        id += "_" + (i + 1);
+      }
+      seen.add(id);
+      return id;
+    });
+    const fnName =
+      "blk_gf_" + String(block.id || "t").replace(/[^A-Za-z0-9_]/g, "_");
+    const target = block.getInputTargetBlock("DO");
+    let body = "";
+    if (target) {
+      body = py.blockToCode(target);
+    }
+    if (!String(body).trim()) {
+      body = "pass\n"; // 空函数体需要占位语句，否则生成代码无法通过缩进编译
+    }
+    return (
+      "async def " +
+      fnName +
+      "(" +
+      params.join(", ") +
+      "):\n" +
+      indentCode(body) +
+      "_blk.define_global_func(" +
+      quotePython(name) +
+      ", " +
+      fnName +
+      ")\n"
+    );
+  };
+
+  // 「调用全局函数」块：按参数端口生成传参列表。
+  py.forBlock["blockly_global_func_call"] = function (block) {
+    const name = block.getFieldValue("NAME") || "";
+    const args = (block.params_ || []).map(
+      (p, i) => py.valueToCode(block, "arg" + i, py.ORDER_NONE) || "None",
+    );
+    return [
+      "await _blk.global_call(" +
+        quotePython(name) +
+        (args.length ? ", " + args.join(", ") : "") +
+        ")",
+      py.ORDER_FUNCTION_CALL,
+    ];
+  };
+
+  py.forBlock["blockly_global_func_return"] = function (block) {
+    const val = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
+    return "return " + val + "\n";
   };
 }
 
@@ -2016,6 +2291,37 @@ function bindFmtModal() {
   });
 }
 
+/* ---------- 全局函数参数编辑弹窗 ---------- */
+let globalFuncTarget = null; // 当前正在编辑参数的全局函数块
+
+function openGlobalFuncParamsDialog(block) {
+  globalFuncTarget = block;
+  $("globalFuncParams").value = (block.params_ || []).join("\n");
+  $("globalFuncTitle").textContent =
+    block.type === "blockly_global_func"
+      ? "全局函数定义 · 参数"
+      : "全局函数调用 · 参数";
+  openModal("globalFuncModal");
+}
+
+function bindGlobalFuncModal() {
+  $("globalFuncCancel").onclick = () => closeModal("globalFuncModal");
+  $("globalFuncOk").onclick = () => {
+    closeModal("globalFuncModal");
+    if (globalFuncTarget) {
+      globalFuncTarget.params_ = $("globalFuncParams")
+        .value.split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      globalFuncTarget.updateShape_();
+    }
+    markDirty();
+  };
+  $("globalFuncModal").addEventListener("click", (e) => {
+    if (e.target === $("globalFuncModal")) closeModal("globalFuncModal");
+  });
+}
+
 function markDirty() {
   if (!loading) dirty = true;
 }
@@ -2125,6 +2431,7 @@ function bindEvents() {
   bindTestModal();
   bindBlockModelModal();
   bindFmtModal();
+  bindGlobalFuncModal();
   bindDescModal();
 }
 

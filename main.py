@@ -29,7 +29,12 @@ try:  # AstrBot 以 data.plugins.<name>.main 的包形式加载插件
         BlocklyProgram,
         new_id,
     )
-    from .blockly.runtime import resolve_event_kind, run_program, simulate_program
+    from .blockly.runtime import (
+        init_global_store,
+        resolve_event_kind,
+        run_program,
+        simulate_program,
+    )
 except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
     from blockly.manager import BlocklyManager
     from blockly.program import (
@@ -37,7 +42,12 @@ except ImportError:  # 直接以脚本/独立目录方式加载插件时回退
         BlocklyProgram,
         new_id,
     )
-    from blockly.runtime import resolve_event_kind, run_program, simulate_program
+    from blockly.runtime import (
+        init_global_store,
+        resolve_event_kind,
+        run_program,
+        simulate_program,
+    )
 
 PLUGIN_NAME = "astrbot_plugin_blockly"
 # 监听优先级：远高于第三方插件默认值（0），仅次于 AstrBot 内置插件（maxsize）。
@@ -82,6 +92,7 @@ class BlocklyPlugin(Star):
         plugin_name = getattr(self, "name", None) or PLUGIN_NAME
         data_dir = Path(get_astrbot_plugin_data_path()) / plugin_name
         self.manager = BlocklyManager(data_dir)
+        init_global_store(data_dir / "global_store.json")
         self._register_web_apis()
 
     # ---------- 生命周期 ----------
@@ -192,9 +203,8 @@ class BlocklyPlugin(Star):
         """
         filtered: list[BlocklyProgram] = []
         for program in programs:
-            if (
-                program.content_type == CONTENT_BLOCKLY
-                and "_blk.event_type" not in (program.code or "")
+            if program.content_type == CONTENT_BLOCKLY and "_blk.event_type" not in (
+                program.code or ""
             ):
                 self.logger.info(
                     "Blockly 程序 %s 的代码为旧版本生成（不含事件分支判断），"
