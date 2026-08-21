@@ -615,3 +615,81 @@ def test_store_generated_code_compiles():
         result = asyncio.run(run_sim(program, message="hi"))
         assert result["error"] == ""
         assert any("3" in r for r in result["replies"])
+
+
+def test_resolve_member_decrease_event():
+    """群成员退群（group_decrease）应被识别为 member_decrease 事件。"""
+    from blockly.mock_event import MockEvent
+    from blockly.runtime import resolve_event_kind
+
+    left = MockEvent(
+        message_str="",
+        raw_message={
+            "post_type": "notice",
+            "notice_type": "group_decrease",
+            "group_id": "255918033",
+            "user_id": "1451173433",
+            "operator_id": "1451173433",
+        },
+    )
+    assert resolve_event_kind(left) == "member_decrease"
+
+
+def test_type_name_and_cast():
+    """类型判断与类型转换块。"""
+    program = BlocklyProgram(
+        code="""
+await _blk.reply(_blk.type_name(3) + ',' + _blk.type_name('x') + ',' + _blk.type_name(None))
+await _blk.reply(str(int('42') + 1) + ',' + str(float(2)) + ',' + str(bool(0)) + ',' + str(list('ab')))
+""",
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert "int,str,NoneType" in result["replies"]
+    assert "43,2.0,False,['a', 'b']" in result["replies"]
+
+
+def test_json_blocks():
+    """JSON 解析/序列化/取值块。"""
+    program = BlocklyProgram(
+        code="""
+data = _blk.json_parse('{"name":"小明","age":18}')
+await _blk.reply(str(_blk.json_get(data, 'name')) + ',' + str(_blk.json_get(data, 'age')))
+await _blk.reply(_blk.json_stringify({'a': 1, 'b': '中文'}))
+await _blk.reply(str(_blk.json_get('{"k":7}', 'k')))
+await _blk.reply(str(_blk.json_get(data, 'missing', 'none')))
+""",
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert "小明,18" in result["replies"]
+    assert '{"a": 1, "b": "中文"}' in result["replies"]
+    assert "7" in result["replies"]
+    assert "none" in result["replies"]
+
+
+def test_text_split_generated_code():
+    """文本分割块（前端生成器输出）可编译执行。"""
+    code = (
+        "if _blk.event_type == 'message':\n"
+        "    await _blk.reply(str(str(_blk.get_message()).split(',')))\n"
+    )
+    source = wrap_code(code)
+    _assert_safe_source(source)
+    compile(source, "<test>", "exec")
+    program = BlocklyProgram(code=code)
+    result = asyncio.run(run_sim(program, message="a,b,c"))
+    assert "['a', 'b', 'c']" in result["replies"]
+
+
+def test_has_type_text_pure_text():
+    """消息属性判断：纯文本消息 has_type('text') 为 True，含图片时为 False。"""
+    program = BlocklyProgram(
+        code="await _blk.reply(str(_blk.has_type('text')) + ',' + str(_blk.has_type('image')))",
+    )
+    result = asyncio.run(run_sim(program, message="hi", message_type="text"))
+    assert "True,False" in result["replies"]
+
+    program2 = BlocklyProgram(
+        code="await _blk.reply(str(_blk.has_type('text')) + ',' + str(_blk.has_type('image')))",
+    )
+    result2 = asyncio.run(run_sim(program2, message="hi", message_type="image"))
+    assert "False,True" in result2["replies"]

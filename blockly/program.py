@@ -16,7 +16,7 @@ CONTENT_BLOCKLY = "blockly"
 CONTENT_PYTHON = "python"
 
 # 程序监听的事件类型
-EVENT_TYPES = ("message", "recall", "member_increase", "poke")
+EVENT_TYPES = ("message", "recall", "member_increase", "member_decrease", "poke")
 
 # 消息事件的属性过滤（仅对 message 事件生效）
 EVENT_ATTRS = ("any", "text", "image", "face", "at", "voice", "reply")
@@ -26,6 +26,7 @@ EVENT_BLOCK_TYPES = {
     "blockly_event": "message",
     "blockly_event_recall": "recall",
     "blockly_event_member_increase": "member_increase",
+    "blockly_event_member_decrease": "member_decrease",
     "blockly_event_poke": "poke",
 }
 

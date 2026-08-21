@@ -182,6 +182,7 @@ const EVENT_BLOCK_MAP = {
   blockly_event: "message",
   blockly_event_recall: "recall",
   blockly_event_member_increase: "member_increase",
+  blockly_event_member_decrease: "member_decrease",
   blockly_event_poke: "poke",
 };
 
@@ -250,6 +251,15 @@ function defineBlocks() {
       nextStatement: null,
       colour: 210,
       tooltip: "程序入口：新成员加入群聊时执行。可用「发送者ID/名称」读取新成员。",
+    },
+    {
+      type: "blockly_event_member_decrease",
+      message0: "当群成员退群 %1",
+      args0: [{ type: "input_statement", name: "DO" }],
+      nextStatement: null,
+      colour: 210,
+      tooltip:
+        "程序入口：群成员退群（主动退群或被移出群聊）时执行。可用「发送者ID/名称」读取退群成员，「操作者ID」读取操作者。",
     },
     {
       type: "blockly_event_poke",
@@ -624,6 +634,100 @@ function defineBlocks() {
       colour: 230,
       tooltip:
         "设置全局函数的返回值（放在「全局函数定义」块内部使用，可提前返回）。",
+    },
+    {
+      type: "blockly_type_cast",
+      message0: "类型转换 %1 为 %2",
+      args0: [
+        { type: "input_value", name: "VALUE" },
+        {
+          type: "field_dropdown",
+          name: "TYPE",
+          options: [
+            ["字符串", "str"],
+            ["整数", "int"],
+            ["浮点数", "float"],
+            ["布尔", "bool"],
+            ["列表", "list"],
+          ],
+        },
+      ],
+      output: null,
+      colour: 230,
+      tooltip: "把值转换为指定类型（字符串/整数/浮点数/布尔/列表）。字符串转数字失败时会报错。",
+    },
+    {
+      type: "blockly_type_of",
+      message0: "类型判断 %1",
+      args0: [{ type: "input_value", name: "VALUE" }],
+      output: "String",
+      colour: 160,
+      tooltip: "返回值的类型名称（str/int/float/bool/list/dict/NoneType 等）。",
+    },
+    {
+      type: "blockly_json_parse",
+      message0: "JSON 解析 %1",
+      args0: [{ type: "input_value", name: "TEXT", check: "String" }],
+      output: null,
+      colour: 330,
+      tooltip: "把 JSON 字符串解析为对象（字典/列表/数字等）。",
+    },
+    {
+      type: "blockly_json_stringify",
+      message0: "JSON 序列化 %1",
+      args0: [{ type: "input_value", name: "VALUE" }],
+      output: "String",
+      colour: 330,
+      tooltip: "把对象转为 JSON 字符串（保留中文）。",
+    },
+    {
+      type: "blockly_json_get",
+      message0: "取 JSON 的键 %1 的 %2（默认 %3）",
+      args0: [
+        { type: "input_value", name: "OBJ" },
+        { type: "input_value", name: "KEY", check: "String" },
+        { type: "input_value", name: "DEFAULT" },
+      ],
+      output: null,
+      colour: 330,
+      tooltip: "从 JSON 对象（字典）中按键取值；对象可为 JSON 字符串，键不存在时返回默认值。",
+    },
+    {
+      type: "blockly_text_split",
+      message0: "按 %1 分割 %2",
+      args0: [
+        {
+          type: "field_input",
+          name: "SEP",
+          text: ",",
+          spellcheck: false,
+        },
+        { type: "input_value", name: "TEXT", check: "String" },
+      ],
+      output: null,
+      colour: 160,
+      tooltip: "把文本按指定分隔符分割为列表（默认分隔符为逗号）。",
+    },
+    {
+      type: "blockly_has_msg_type",
+      message0: "消息类型是否为 %1",
+      args0: [
+        {
+          type: "field_dropdown",
+          name: "KIND",
+          options: [
+            ["纯文本", "text"],
+            ["图片", "image"],
+            ["表情", "face"],
+            ["@某人", "at"],
+            ["语音", "voice"],
+            ["引用回复", "reply"],
+          ],
+        },
+      ],
+      output: "Boolean",
+      colour: 160,
+      tooltip: "判断当前消息是否为指定类型（消息属性）。",
     },
   ]);
 
@@ -1089,6 +1193,46 @@ function registerPythonGenerator() {
   py.forBlock["blockly_global_func_return"] = function (block) {
     const val = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
     return "return " + val + "\n";
+  };
+
+  // 类型转换：str/int/float/bool/list 均为沙箱白名单内置函数。
+  py.forBlock["blockly_type_cast"] = function (block) {
+    const value = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
+    const type = block.getFieldValue("TYPE") || "str";
+    return [`${type}(${value})`, py.ORDER_FUNCTION_CALL];
+  };
+
+  py.forBlock["blockly_type_of"] = function (block) {
+    const value = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
+    return [`_blk.type_name(${value})`, py.ORDER_FUNCTION_CALL];
+  };
+
+  py.forBlock["blockly_json_parse"] = function (block) {
+    const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
+    return [`_blk.json_parse(${text})`, py.ORDER_FUNCTION_CALL];
+  };
+
+  py.forBlock["blockly_json_stringify"] = function (block) {
+    const value = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
+    return [`_blk.json_stringify(${value})`, py.ORDER_FUNCTION_CALL];
+  };
+
+  py.forBlock["blockly_json_get"] = function (block) {
+    const obj = py.valueToCode(block, "OBJ", py.ORDER_NONE) || "{}";
+    const key = py.valueToCode(block, "KEY", py.ORDER_NONE) || "''";
+    const def = py.valueToCode(block, "DEFAULT", py.ORDER_NONE) || "None";
+    return [`_blk.json_get(${obj}, ${key}, ${def})`, py.ORDER_FUNCTION_CALL];
+  };
+
+  py.forBlock["blockly_text_split"] = function (block) {
+    const text = py.valueToCode(block, "TEXT", py.ORDER_NONE) || "''";
+    const sep = block.getFieldValue("SEP") || ",";
+    return [`str(${text}).split(${quotePython(sep)})`, py.ORDER_FUNCTION_CALL];
+  };
+
+  py.forBlock["blockly_has_msg_type"] = function (block) {
+    const kind = block.getFieldValue("KIND") || "text";
+    return [`_blk.has_type('${kind}')`, py.ORDER_FUNCTION_CALL];
   };
 }
 

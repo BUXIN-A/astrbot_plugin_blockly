@@ -44,6 +44,7 @@ except ImportError:  # 测试环境（未安装 AstrBot）
 NOTICE_KINDS = {
     "group_recall": "recall",
     "group_increase": "member_increase",
+    "group_decrease": "member_decrease",
 }
 
 
@@ -386,10 +387,18 @@ class BlocklyRuntime:
         return "text"
 
     def has_type(self, kind: Any) -> bool:
-        """判断消息是否包含指定类型的内容（如 image/fae/at/voice/reply/poke）。"""
+        """判断消息是否包含指定类型的内容（如 image/face/at/voice/reply/poke）。
+
+        ``text`` 表示纯文本消息：消息中不含任何非文本段。
+        """
         target = str(kind or "").strip().lower()
         if not target:
             return False
+        if target == "text":
+            for seg in self._messages():
+                if self._segment_kind(seg) not in ("plain", "", "unknown"):
+                    return False
+            return True
         for seg in self._messages():
             if self._segment_kind(seg) == target:
                 return True
@@ -704,6 +713,30 @@ class BlocklyRuntime:
     def dict_get(self, d: Any, key: Any, default: Any = "") -> Any:
         if isinstance(d, dict):
             return d.get(key, default)
+        return default
+
+    # ---------- 类型与 JSON 处理 ----------
+    def type_name(self, value: Any) -> str:
+        """返回值的类型名称（str/int/float/bool/list/dict/NoneType 等）。"""
+        return type(value).__name__
+
+    def json_parse(self, text: Any) -> Any:
+        """把 JSON 字符串解析为对象（字典/列表/数字等）。"""
+        return json.loads(str(text))
+
+    def json_stringify(self, value: Any) -> str:
+        """把对象序列化为 JSON 字符串（保留中文）。"""
+        return json.dumps(value, ensure_ascii=False)
+
+    def json_get(self, obj: Any, key: Any, default: Any = None) -> Any:
+        """从 JSON 对象（字典）中取值；传入 JSON 字符串时会先解析。"""
+        if isinstance(obj, str):
+            try:
+                obj = json.loads(obj)
+            except (TypeError, ValueError):
+                return default
+        if isinstance(obj, dict):
+            return obj.get(key, default)
         return default
 
 
