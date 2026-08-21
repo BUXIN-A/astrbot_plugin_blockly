@@ -1855,10 +1855,13 @@ function applyStaticIcons() {
   }
 }
 
-// 点击「主题」按钮切换到独立的主题设置页面。
-// 插件页面 URL 为 /api/plugin/page/content/<插件>/<页面>/...，把当前页面段替换为
-// blockly-theme 并回到页面根，服务端会自动为新页面签发 asset_token（页面访问由
-// Dashboard 登录 cookie 鉴权）。
+// 点击「主题」按钮切换到主题设置页面。
+// 插件页 iframe 沙箱（无 allow-same-origin）下：
+// - 直接整页请求 /api/plugin/page/content/... 资源路径时不带 Dashboard 授权头，
+//   服务端返回 401「未授权」；
+// - 且无法跨源操作父窗口路由。
+// 因此跳转到 Dashboard 前端路由（#/plugin-page/<插件>/blockly-theme），
+// 由 Dashboard SPA 完成认证后加载主题设置页面。
 function gotoThemePage() {
   const parts = window.location.pathname.split("/").filter(Boolean);
   const isPluginPage =
@@ -1867,13 +1870,14 @@ function gotoThemePage() {
     parts[1] === "plugin" &&
     parts[2] === "page" &&
     parts[3] === "content";
-  if (isPluginPage) {
-    parts[5] = "blockly-theme";
-    parts.length = 6;
-    window.location.href = "/" + parts.join("/");
-  } else {
+  if (!isPluginPage) {
     showToast("无法定位「Blockly 主题设置」页面", true);
+    return;
   }
+  const pluginName = decodeURIComponent(parts[4]);
+  const base = new URL(window.location.href).origin;
+  window.location.href =
+    base + "/#/plugin-page/" + pluginName + "/blockly-theme";
 }
 
 function collectForm() {
