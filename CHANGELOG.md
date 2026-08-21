@@ -2,6 +2,13 @@
 
 本插件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循语义化版本。
 
+## [v0.6.7] - 2026-08-20
+
+### 修复
+- **Blockly for 循环报 `name 'upRange' is not defined`**：Blockly 的「循环 for」积木在步长与边界不全为字面量时会生成 `upRange(...)` / `downRange(...)` 辅助函数调用，但此前代码生成（`blockToCode` 逐块拼接）不会输出这些函数定义，导致后端执行报错。修复双管齐下：
+  - 前端生成代码时把 Blockly 注册的辅助函数定义（`upRange`/`downRange` 等）拼接到代码顶部（排除 `import` 语句，由沙箱命名空间提供，避免触发「禁止 import」检查）；
+  - 后端沙箱命名空间注入 `upRange`/`downRange`，兼容已保存的旧程序，无需重新保存即可运行。
+
 ## [v0.6.6] - 2026-08-20
 
 ### 新增

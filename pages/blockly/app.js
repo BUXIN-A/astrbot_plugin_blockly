@@ -1695,7 +1695,16 @@ function generateCode() {
     } else if (!toolBlocks.length) {
       return Blockly.Python.workspaceToCode(workspace);
     }
-    return parts.join("\n");
+    const code = parts.join("\n");
+    // blockToCode 不会输出 Blockly 通过 provideFunction_ 注册的辅助函数
+    // （如 for 循环的 upRange/downRange），需手动拼到代码顶部，否则后端执行报
+    // name 'upRange' is not defined。import 语句由沙箱命名空间提供，排除以免
+    // 触发后端「禁止使用 import 语句」的 AST 检查。
+    const prefix = Object.values(Blockly.Python.definitions_ || {})
+      .filter((s) => !/^(from\s+\S+\s+)?import\s+\S+/.test(String(s)))
+      .join("\n")
+      .trim();
+    return prefix ? prefix + "\n" + code : code;
   } catch (err) {
     console.error("[blockly] 积木代码生成失败:", err);
     return $("codeEditor").value || "";

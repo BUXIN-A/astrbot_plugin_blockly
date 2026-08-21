@@ -760,3 +760,69 @@ def test_type_cast_list_generated_code():
     program = BlocklyProgram(code=code)
     result = asyncio.run(run_sim(program, message='["甲", "乙"]'))
     assert "['甲', '乙']" in result["replies"]
+
+
+def test_up_range_down_range_fallback():
+    """后端命名空间兜底：旧程序调用 upRange/downRange 不再报 NameError。"""
+    program = BlocklyProgram(
+        code="""
+if _blk.event_type == 'message':
+    for i in upRange(1, 3, 1):
+        await _blk.reply(str(i))
+""",
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert result["error"] == ""
+    assert result["replies"] == ["1", "2", "3"]
+
+    program2 = BlocklyProgram(
+        code="""
+if _blk.event_type == 'message':
+    for i in downRange(3, 1, 1):
+        await _blk.reply(str(i))
+""",
+    )
+    result2 = asyncio.run(run_sim(program2, message="x"))
+    assert result2["error"] == ""
+    assert result2["replies"] == ["3", "2", "1"]
+
+
+def test_blockly_for_loop_shortcircuit_expression():
+    """Blockly for 循环生成器输出的短路表达式可执行（回归：blockly_program.json）。"""
+    program = BlocklyProgram(
+        code="""
+if _blk.event_type == 'message':
+    n = 3
+    for i in (1 <= n) and upRange(1, n, 1) or downRange(1, n, 1):
+        await _blk.reply(str(i))
+""",
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert result["error"] == ""
+    assert result["replies"] == ["1", "2", "3"]
+
+
+def test_generated_code_with_blockly_definitions():
+    """前端修复后生成的 code 含 upRange/downRange 定义，可编译执行。"""
+    code = (
+        "def upRange(start, stop, step):\n"
+        "  while start <= stop:\n"
+        "    yield start\n"
+        "    start += abs(step)\n"
+        "\n"
+        "def downRange(start, stop, step):\n"
+        "  while start >= stop:\n"
+        "    yield start\n"
+        "    start -= abs(step)\n"
+        "\n"
+        "if _blk.event_type == 'message':\n"
+        "    for i in (1 <= 3) and upRange(1, 3, 1) or downRange(1, 3, 1):\n"
+        "        await _blk.reply(str(i))\n"
+    )
+    source = wrap_code(code)
+    _assert_safe_source(source)
+    compile(source, "<test>", "exec")
+    program = BlocklyProgram(code=code)
+    result = asyncio.run(run_sim(program, message="x"))
+    assert result["error"] == ""
+    assert result["replies"] == ["1", "2", "3"]

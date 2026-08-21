@@ -812,7 +812,23 @@ def _compile_safe(source: str) -> Any:
     return compile(source, "<blockly>", "exec")
 
 
+def _up_range(start, stop, step):
+    """Blockly for 循环向上迭代（step>0）辅助函数。"""
+    while start <= stop:
+        yield start
+        start += abs(step)
+
+
+def _down_range(start, stop, step):
+    """Blockly for 循环向下迭代（step<0）辅助函数。"""
+    while start >= stop:
+        yield start
+        start -= abs(step)
+
+
 def _build_namespace(context, event, program: BlocklyProgram) -> dict:
+    # upRange/downRange：Blockly「循环 for」积木生成的代码会调用它们。
+    # 新版本前端会把辅助函数定义拼进 code；这里注入作为兜底，兼容已保存的旧程序。
     return {
         "__builtins__": dict(SAFE_BUILTINS),
         "math": math,
@@ -820,6 +836,8 @@ def _build_namespace(context, event, program: BlocklyProgram) -> dict:
         "event": event,
         "ctx": context,
         "_blk": BlocklyRuntime(context, event, program),
+        "upRange": _up_range,
+        "downRange": _down_range,
     }
 
 
