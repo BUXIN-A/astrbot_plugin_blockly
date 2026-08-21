@@ -4,9 +4,12 @@
 """
 
 import asyncio
+import base64
+import io
 import sys
 import types
 import tempfile
+import zipfile
 from pathlib import Path
 
 # main.py 依赖 astrbot 环境，这里用轻量 stub 让模块可导入测试。
@@ -53,8 +56,19 @@ if "astrbot" not in sys.modules:
     web_mod.error_response = lambda *a, **k: None
     web_mod.file_response = lambda *a, **k: None
     web_mod.json_response = lambda data, *a, **k: data
+
+    # request 的 json/files 可配置，便于测试需要请求体的 API
+    REQUEST_STATE = {"json": None, "files": {}}
+
+    async def _req_json(default=None):
+        return REQUEST_STATE["json"] if REQUEST_STATE["json"] is not None else default
+
+    async def _req_files():
+        return REQUEST_STATE["files"]
+
     web_mod.request = types.SimpleNamespace(
-        json=staticmethod(lambda default=None: default), files=staticmethod(lambda: {})
+        json=staticmethod(_req_json),
+        files=staticmethod(_req_files),
     )
     path_mod.get_astrbot_plugin_data_path = lambda: str(
         Path(tempfile.gettempdir()) / "blockly_test_data"
@@ -229,3 +243,99 @@ def test_import_rejects_duplicate_names(tmp_path):
     # 导入条目之间重名应拒绝
     assert res is None
     assert plugin.manager.list_programs() == []
+
+
+# ---------- 主题 ----------
+
+
+def _make_plugin_with_theme(tmp_path: Path):
+    """构造带主题目录的插件。"""
+    plugin = _make_plugin(tmp_path)
+    plugin.theme_dir = tmp_path / "themes"
+    plugin.theme_dir.mkdir(parents=True, exist_ok=True)
+    return plugin
+
+
+def _build_theme_zip(css: str, name: str = "我的主题") -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("theme_name.txt", name)
+        zf.writestr("theme.css", css)
+    return buf.getvalue()
+
+
+def test_extract_theme_from_zip():
+    from main import _extract_theme_from_zip
+
+    css, name = _extract_theme_from_zip(_build_theme_zip("body{}", "蓝色主题"))
+    assert name == "蓝色主题"
+    assert "body{}" in css
+
+    # 无 .css 文件应报错
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("readme.txt", "no css")
+    try:
+        _extract_theme_from_zip(buf.getvalue())
+        assert False, "应当抛出 ValueError"
+    except ValueError:
+        pass
+
+
+def test_theme_get_default(tmp_path):
+    plugin = _make_plugin_with_theme(tmp_path)
+    res = asyncio.run(plugin.api_get_theme())
+    assert res["ok"] is True
+    assert res["active"] == "default"
+    assert res["custom"] is None
+
+
+def test_theme_save_and_get_custom(tmp_path):
+    plugin = _make_plugin_with_theme(tmp_path)
+    REQUEST_STATE["json"] = {
+        "active": "custom",
+        "name": "深蓝主题",
+        "css": ".toolbar { background: #123456; }",
+    }
+    res = asyncio.run(plugin.api_save_theme())
+    assert res["ok"] is True
+    assert res["active"] == "custom"
+    # 写入磁盘
+    assert (plugin.theme_dir / "custom.css").exists()
+    assert (plugin.theme_dir / "active.txt").read_text(encoding="utf-8") == "custom"
+
+    REQUEST_STATE["json"] = None
+    got = asyncio.run(plugin.api_get_theme())
+    assert got["active"] == "custom"
+    assert got["custom"]["name"] == "深蓝主题"
+    assert "#123456" in got["custom"]["css"]
+
+
+def test_theme_import_via_base64(tmp_path):
+    plugin = _make_plugin_with_theme(tmp_path)
+    zipped = _build_theme_zip(".theme-item{color:red}", "红色主题")
+    REQUEST_STATE["json"] = {
+        "file_b64": base64.b64encode(zipped).decode("ascii"),
+    }
+    res = asyncio.run(plugin.api_import_theme())
+    assert res["ok"] is True
+    assert res["active"] == "custom"
+    assert res["name"] == "红色主题"
+    assert "color:red" in res["css"]
+    # 落盘并切换为自定义
+    assert (plugin.theme_dir / "custom.css").read_text(encoding="utf-8").find(
+        "color:red"
+    ) != -1
+    assert (plugin.theme_dir / "active.txt").read_text(encoding="utf-8") == "custom"
+
+    REQUEST_STATE["json"] = None
+
+
+def test_theme_import_missing_file(tmp_path):
+    plugin = _make_plugin_with_theme(tmp_path)
+    REQUEST_STATE["json"] = {}
+    res = asyncio.run(plugin.api_import_theme())
+    # 缺少文件时应报错（error_response stub 返回 None）
+    assert res is None
+    assert not (plugin.theme_dir / "custom.css").exists()
+    REQUEST_STATE["json"] = None

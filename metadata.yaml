@@ -28,7 +28,10 @@ desc: |
   - 事件入口支持「群成员退群」；新增类型转换、类型判断、JSON 处理、文本分割、消息属性判断积木。
   - 「JSON」积木含所有键获取；「类型转换-列表」按 JSON 数组/换行/逗号智能解析。
   - 修复 Blockly for 循环生成的 upRange/downRange 未定义问题。
-version: v0.6.7
+  - 工具箱积木搜索（按关键词筛选积木）。
+  - 主题设置：内置/深色/自定义主题切换，支持 zip 导入导出（弹窗界面，切换后刷新生效）。
+  - 精简部分积木提示文案。
+version: v0.7.0
 author: BUXIN-A
 repo: https://github.com/BUXIN-A/astrbot_plugin_blockly
 support_platforms:

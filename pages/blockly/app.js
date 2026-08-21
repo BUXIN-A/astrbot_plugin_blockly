@@ -46,6 +46,8 @@ let selectedModels = []; // 当前表单中的「可用模型」白名单
 let availableModels = []; // 后端可用的模型列表
 let dirty = false;
 let loading = false;
+let ORIGINAL_TOOLBOX_XML = null; // 原始工具箱 XML（积木搜索时按关键词重建）
+let themeState = { active: "default", builtin: [], custom: null }; // 主题状态
 
 /* ---------- 通用 ---------- */
 
@@ -232,8 +234,7 @@ function defineBlocks() {
       ],
       colour: 210,
       nextStatement: null,
-      tooltip:
-        "程序入口：收到消息且满足消息属性时执行。属性为「任意」时可用「消息类型」块自行判断。",
+      tooltip: "程序入口：收到消息且满足消息属性时执行。",
     },
     {
       type: "blockly_event_recall",
@@ -241,8 +242,7 @@ function defineBlocks() {
       args0: [{ type: "input_statement", name: "DO" }],
       nextStatement: null,
       colour: 210,
-      tooltip:
-        "程序入口：有人撤回消息时执行。可用「消息 ID/发送者/群号」等块读取被撤回消息信息。",
+      tooltip: "程序入口：有人撤回消息时执行。",
     },
     {
       type: "blockly_event_member_increase",
@@ -250,7 +250,7 @@ function defineBlocks() {
       args0: [{ type: "input_statement", name: "DO" }],
       nextStatement: null,
       colour: 210,
-      tooltip: "程序入口：新成员加入群聊时执行。可用「发送者ID/名称」读取新成员。",
+      tooltip: "程序入口：新成员加入群聊时执行。",
     },
     {
       type: "blockly_event_member_decrease",
@@ -258,8 +258,7 @@ function defineBlocks() {
       args0: [{ type: "input_statement", name: "DO" }],
       nextStatement: null,
       colour: 210,
-      tooltip:
-        "程序入口：群成员退群（主动退群或被移出群聊）时执行。可用「发送者ID/名称」读取退群成员，「操作者ID」读取操作者。",
+      tooltip: "程序入口：群成员退群（主动或被移出）时执行。",
     },
     {
       type: "blockly_event_poke",
@@ -562,7 +561,7 @@ function defineBlocks() {
       nextStatement: null,
       colour: 210,
       tooltip:
-        "注册一个 AI 工具：AI 会根据「使用时机」描述决定何时调用它。块内可放任意积木；勾选「将返回值返回给 AI」后，块内「设置工具返回值」的内容会作为工具结果交给 AI。请放在画布（不与其他积木相连），AI 回答块会自动把本工具提供给 AI。",
+        "注册 AI 工具：AI 按「使用时机」描述决定何时调用。勾选「返回值」后，块内「设置工具返回值」内容将作为结果交给 AI。请放在画布空白处。",
     },
     {
       type: "blockly_tool_return",
@@ -763,7 +762,7 @@ function defineBlocks() {
       this.setOutput(true, "String");
       this.setColour(90);
       this.setTooltip(
-        "调用 AI 模型返回回答文本。点击齿轮按钮添加多个 provider:model（顺序即优先级、失败自动切换下一个）；不指定时按程序「可用模型」白名单。"
+        "调用 AI 模型返回回答文本；齿轮按钮可指定多个模型（顺序即优先级、失败自动切换下一个）。"
       );
     },
     saveExtraState: function () {
@@ -805,7 +804,7 @@ function defineBlocks() {
       this.setOutput(true, "String");
       this.setColour(160);
       this.setTooltip(
-        "创建多行模板文本，可在其中插入标签（{标签名}）。退出弹窗后每个标签自动生成一个可连接文本块的输入端口，运行时把端口内容替换进对应标签位置。"
+        "创建多行模板文本，用 {标签} 占位，退出弹窗后自动生成对应输入端口。"
       );
     },
     saveExtraState: function () {
@@ -859,7 +858,7 @@ function defineBlocks() {
       this.setColour(230);
       this.params_ = [];
       this.setTooltip(
-        "定义全局函数：保存并运行一次本程序后，其他所有程序都能调用它。函数体内可使用「全局函数返回」块设置返回值。"
+        "定义全局函数：保存并运行一次本程序后，其他程序均可调用；函数体内可用「全局函数返回」设置返回值。"
       );
     },
     saveExtraState: function () {
@@ -900,7 +899,7 @@ function defineBlocks() {
       this.setColour(230);
       this.params_ = [];
       this.setTooltip(
-        "调用已注册的全局函数并返回其结果。点击齿轮设置参数（每行一个参数名）；参数值按顺序传入。"
+        "调用已注册的全局函数并返回结果；齿轮设置参数（每行一个），按顺序传值。"
       );
     },
     saveExtraState: function () {
@@ -1709,6 +1708,203 @@ function generateCode() {
     console.error("[blockly] 积木代码生成失败:", err);
     return $("codeEditor").value || "";
   }
+}
+
+/* ---------- 积木搜索（按关键词筛选工具箱） ---------- */
+
+function blockSearchText(type) {
+  // 通过实例化一个临时块获取其显示文本（含中文积木名），用于关键词匹配。
+  if (!type || !Blockly.Blocks[type]) return type || "";
+  try {
+    const b = workspace.newBlock(type);
+    const label = (b.toString() || "")
+      .replace(/%\d+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    b.dispose(false);
+    return label;
+  } catch (err) {
+    return type;
+  }
+}
+
+function filterToolbox(keyword) {
+  const kw = String(keyword || "").trim().toLowerCase();
+  if (!ORIGINAL_TOOLBOX_XML || !workspace) return;
+  if (!kw) {
+    // 清空关键词：恢复完整工具箱
+    workspace.updateToolbox(Blockly.utils.xml.textToDom(ORIGINAL_TOOLBOX_XML));
+    return;
+  }
+  const dom = Blockly.utils.xml.textToDom(ORIGINAL_TOOLBOX_XML);
+  const cats = Array.from(dom.children || []);
+  for (const cat of cats) {
+    const blocks = Array.from(cat.children || []).filter(
+      (b) => String(b.tagName).toLowerCase() === "block",
+    );
+    if (!blocks.length) continue; // custom 分类（变量/函数）
+    while (cat.firstChild) cat.removeChild(cat.firstChild);
+    for (const b of blocks) {
+      const type = b.getAttribute("type") || "";
+      const label = blockSearchText(type);
+      if (
+        type.toLowerCase().includes(kw) ||
+        label.toLowerCase().includes(kw)
+      ) {
+        cat.appendChild(b);
+      }
+    }
+  }
+  // 移除无匹配块的分类
+  Array.from(dom.children || []).forEach((cat) => {
+    if (!cat.children.length) dom.removeChild(cat);
+  });
+  if (!dom.children.length) {
+    showToast("没有匹配的积木");
+    return;
+  }
+  workspace.updateToolbox(dom);
+}
+
+/* ---------- 主题设置 ---------- */
+
+async function initTheme() {
+  const st = await loadThemeState();
+  if (!st) return;
+  // 刷新后恢复自定义主题 CSS（沙箱 iframe 无 localStorage，主题由后端持久化）
+  if (st.active === "custom" && st.custom) {
+    applyThemeCss(st.custom.css);
+  }
+}
+
+async function loadThemeState() {
+  try {
+    const res = await apiGet("theme");
+    themeState = {
+      active: res.active || "default",
+      builtin: res.builtin || [],
+      custom: res.custom || null,
+    };
+    return themeState;
+  } catch (err) {
+    showToast(err.message || "加载主题设置失败", true);
+    return null;
+  }
+}
+
+function applyThemeCss(css) {
+  let style = document.getElementById("themeStyle");
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "themeStyle";
+    document.head.appendChild(style);
+  }
+  style.textContent = css || "";
+}
+
+async function openThemeDialog() {
+  const st = await loadThemeState();
+  if (!st) return;
+  renderThemeList(st);
+  openModal("themeModal");
+}
+
+function renderThemeList(st) {
+  const list = $("themeList");
+  list.innerHTML = "";
+  const options = [
+    { id: "default", label: "默认主题", desc: "插件默认样式" },
+    { id: "dark", label: "深色主题", desc: "跟随 AstrBot 深色模式" },
+  ];
+  if (st.custom) {
+    options.push({
+      id: "custom",
+      label: st.custom.name,
+      desc: "自定义主题（zip 导入）",
+    });
+  }
+  for (const opt of options) {
+    const row = document.createElement("label");
+    row.className = "theme-item";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "themePick";
+    radio.value = opt.id;
+    radio.checked = st.active === opt.id;
+    const nameEl = document.createElement("span");
+    nameEl.className = "theme-name";
+    nameEl.textContent = opt.label;
+    const descEl = document.createElement("span");
+    descEl.className = "theme-desc";
+    descEl.textContent = opt.desc;
+    row.append(radio, nameEl, descEl);
+    list.appendChild(row);
+  }
+  $("themeHint").textContent = st.custom
+    ? `当前自定义主题：${st.custom.name}`
+    : "导入 zip 主题包后可在此选择自定义主题";
+}
+
+function selectedThemeId() {
+  const el = document.querySelector('input[name="themePick"]:checked');
+  return el ? el.value : "default";
+}
+
+async function applyTheme() {
+  const id = selectedThemeId();
+  try {
+    await apiPost("theme", { active: id });
+    if (id === "custom" && themeState.custom) {
+      applyThemeCss(themeState.custom.css);
+    } else {
+      applyThemeCss("");
+    }
+  } catch (err) {
+    showToast(err.message || "保存主题失败", true);
+    return;
+  }
+  themeState.active = id;
+  closeModal("themeModal");
+  showToast("主题已切换，请刷新页面重新进入界面");
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function importThemeFromFile(file) {
+  if (!file) return;
+  let res;
+  try {
+    const buf = await file.arrayBuffer();
+    res = await apiPost("theme/import", {
+      file_b64: arrayBufferToBase64(buf),
+      filename: file.name,
+    });
+  } catch (err) {
+    showToast(err.message || "导入主题失败", true);
+    return;
+  }
+  themeState = {
+    active: "custom",
+    builtin: themeState.builtin,
+    custom: { name: res.name, css: res.css },
+  };
+  applyThemeCss(res.css);
+  renderThemeList(themeState);
+  showToast("主题导入成功，请刷新页面完全生效");
+}
+
+function exportTheme() {
+  bridge
+    .download("theme/export", {}, "blockly_theme.zip")
+    .catch((err) => showToast(err.message || "导出主题失败", true));
 }
 
 function collectForm() {
@@ -2587,6 +2783,25 @@ function bindEvents() {
   $("openModelsBtn").onclick = openModelsDialog;
   $("descriptionBtn").onclick = openDescriptionDialog;
 
+  // 积木搜索：输入去抖后按关键词过滤工具箱
+  let searchTimer = null;
+  $("blockSearch").addEventListener("input", (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => filterToolbox(e.target.value), 200);
+  });
+
+  // 主题设置
+  $("themeBtn").onclick = openThemeDialog;
+  $("themeCancel").onclick = () => closeModal("themeModal");
+  $("themeOk").onclick = applyTheme;
+  $("themeExportBtn").onclick = exportTheme;
+  const themeFile = $("themeFile");
+  $("themeImportBtn").onclick = () => themeFile.click();
+  themeFile.onchange = (e) => {
+    importThemeFromFile(e.target.files[0]);
+    e.target.value = "";
+  };
+
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {
       e.preventDefault();
@@ -2613,6 +2828,8 @@ function bindEvents() {
     document.title = ctx.pageTitle || "Blockly 可视化编程";
     defineBlocks();
     registerPythonGenerator();
+    // 在 inject 前保存原始工具箱 XML，供积木搜索按关键词重建
+    ORIGINAL_TOOLBOX_XML = $("toolbox").outerHTML;
     initWorkspace(ctx.isDark);
     bridge.onContext((c) => {
       if (workspace) {
@@ -2624,6 +2841,7 @@ function bindEvents() {
     bindEvents();
     loadAvailableModels();
     await refreshPrograms();
+    await initTheme(); // 应用已保存的主题（自定义 CSS），保证刷新后主题保持
     if (programs.length) {
       await selectProgram(programs[0].id);
     }

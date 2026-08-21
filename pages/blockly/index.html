@@ -48,6 +48,10 @@
           <span class="id-badge" id="idBadge" title="程序 ID"></span>
         </div>
         <div class="toolbar-right">
+          <input class="input block-search" id="blockSearch" placeholder="搜索积木…" title="输入关键词筛选工具箱中的积木（支持名称/类型）" />
+          <button class="btn" id="themeBtn" title="主题设置：切换/导入/导出主题">
+            <span>主题</span>
+          </button>
           <label class="switch-wrap icon-toggle" title="启用该程序">
             <input type="checkbox" id="enabledCheck" />
             <img class="toggle-check" src="img/check.png" alt="启用" />
@@ -259,6 +263,28 @@
       <div class="modal-actions">
         <button class="btn" id="globalFuncCancel">取消</button>
         <button class="btn btn-primary" id="globalFuncOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主题设置弹窗 -->
+  <div class="modal-overlay hidden" id="themeModal">
+    <div class="modal theme-wide" role="dialog" aria-modal="true">
+      <div class="modal-title">主题设置</div>
+      <div class="modal-message">切换主题后需<span class="strong">刷新页面</span>重新进入界面以完全生效。</div>
+      <div class="form-row">
+        <label>选择主题</label>
+        <div class="theme-list" id="themeList"></div>
+        <div class="form-hint" id="themeHint"></div>
+      </div>
+      <div class="theme-actions">
+        <button class="btn" id="themeImportBtn">导入主题（zip）</button>
+        <button class="btn" id="themeExportBtn">导出当前主题</button>
+        <input type="file" id="themeFile" accept=".zip,application/zip" hidden />
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="themeCancel">关闭</button>
+        <button class="btn btn-primary" id="themeOk">应用</button>
       </div>
     </div>
   </div>
