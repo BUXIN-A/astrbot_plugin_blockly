@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import mimetypes
 import tempfile
 import time
 from pathlib import Path
@@ -768,19 +769,38 @@ class BlocklyPlugin(Star):
         )
 
     async def api_theme_file(self, tid: str) -> Any:
-        """读取主题内文件内容（query 参数 path 为文件相对路径）。"""
+        """读取主题内文件内容（query 参数 path 为文件相对路径）。
+
+        文本文件返回 ``content``；二进制文件（如图片图标）返回 ``base64`` 与
+        ``mime``，便于前端直接作为 data URI 使用。
+        """
         path = request.query.get("path", "")
         content = self.themes.read_file(tid, path)
-        if content is None:
+        if content is not None:
+            return json_response({"ok": True, "path": path, "content": content})
+        raw = self.themes.read_file_bytes(tid, path)
+        if raw is None:
             return error_response("文件不存在或路径越界", status_code=404)
-        return json_response({"ok": True, "path": path, "content": content})
+        mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
+        return json_response(
+            {
+                "ok": True,
+                "path": path,
+                "base64": base64.b64encode(raw).decode("ascii"),
+                "mime": mime,
+            }
+        )
 
     async def api_theme_file_save(self, tid: str) -> Any:
-        """保存主题内文件内容（body 含 path 与 content）。"""
+        """保存主题内文件内容（body 含 path 与 content/base64）。"""
         body = await request.json(default={})
         path = str(body.get("path") or "")
-        content = str(body.get("content") or "")
-        if not self.themes.write_file(tid, path, content):
+        b64 = body.get("base64")
+        if isinstance(b64, str) and b64:
+            ok = self.themes.write_file_bytes(tid, path, base64.b64decode(b64))
+        else:
+            ok = self.themes.write_file(tid, path, str(body.get("content") or ""))
+        if not ok:
             return error_response("保存失败：文件路径越界或主题不存在", status_code=400)
         return json_response({"ok": True, "path": path})
 

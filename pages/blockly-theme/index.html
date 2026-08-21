@@ -12,7 +12,7 @@
       <div class="header-main">
         <h1>Blockly 主题设置</h1>
         <p class="header-desc">
-          主题用于定制 Blockly 编辑器的界面样式（CSS），只影响「Blockly 可视化编程」页面，不影响本设置页面。
+          主题用于定制 Blockly 编辑器的界面样式（CSS）与 UI 图标（<code>img/</code> 文件夹），只影响「Blockly 可视化编程」页面，不影响本设置页面。
           切换主题后需刷新 Blockly 编辑页面以完全生效。
         </p>
       </div>
@@ -42,8 +42,16 @@
         </div>
         <div class="editor-wrap hidden" id="editorWrap">
           <div class="file-tree" id="fileTree"></div>
-          <textarea class="file-content" id="fileContent" spellcheck="false"
-            placeholder="点击左侧文件查看/编辑内容"></textarea>
+          <div class="editor-right">
+            <textarea class="file-content" id="fileContent" spellcheck="false"
+              placeholder="点击左侧文件查看/编辑内容"></textarea>
+            <div class="image-edit hidden" id="imageEdit">
+              <div class="image-edit-meta" id="imageMeta"></div>
+              <img class="image-preview" id="imagePreview" alt="图标预览" />
+              <button class="btn" id="imageUploadBtn">上传替换</button>
+              <input type="file" id="imageUploadFile" accept="image/*" hidden />
+            </div>
+          </div>
         </div>
       </main>
     </div>

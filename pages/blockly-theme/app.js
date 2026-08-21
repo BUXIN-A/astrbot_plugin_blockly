@@ -283,8 +283,7 @@ function openEditor(theme) {
   $("editorTitle").textContent = `编辑主题：${theme.name}`;
   $("editorEmpty").classList.add("hidden");
   $("editorWrap").classList.remove("hidden");
-  $("fileContent").value = "";
-  $("fileSave").disabled = true;
+  resetFileEditor();
   renderFileTree();
 }
 
@@ -294,8 +293,35 @@ function closeEditor() {
   $("editorTitle").textContent = "文件编辑";
   $("editorEmpty").classList.remove("hidden");
   $("editorWrap").classList.add("hidden");
+  resetFileEditor();
+}
+
+// 重置编辑器右侧：回到文本模式并清空
+function resetFileEditor() {
   $("fileContent").value = "";
   $("fileSave").disabled = true;
+  $("fileContent").classList.remove("hidden");
+  $("imageEdit").classList.add("hidden");
+  $("imagePreview").src = "";
+  $("imageUploadBtn").disabled = true;
+}
+
+// 显示文本编辑模式（CSS/JS 等文本文件）
+function showTextEditor(content) {
+  $("fileContent").classList.remove("hidden");
+  $("imageEdit").classList.add("hidden");
+  $("fileContent").value = content || "";
+  $("fileSave").disabled = false;
+}
+
+// 显示图片预览模式（img/ 下的图标等二进制文件），支持上传替换
+function showImageEditor(path, base64, mime) {
+  $("fileContent").classList.add("hidden");
+  $("imageEdit").classList.remove("hidden");
+  $("imageMeta").textContent = `${path}（${mime}）`;
+  $("imagePreview").src = `data:${mime};base64,${base64}`;
+  $("fileSave").disabled = true;
+  $("imageUploadBtn").disabled = false;
 }
 
 function renderFileTree() {
@@ -326,14 +352,18 @@ async function selectFile(path) {
   if (!editTarget) return;
   editFile = path;
   renderFileTree();
+  resetFileEditor();
   try {
     const res = await bridge.apiGet(`theme/${editTarget.id}/file`, { path });
-    $("fileContent").value = res.content || "";
+    if (res.base64) {
+      // 二进制文件（如图片图标）：预览并支持上传替换
+      showImageEditor(res.path, res.base64, res.mime || "application/octet-stream");
+    } else {
+      showTextEditor(res.content || "");
+    }
   } catch (err) {
-    $("fileContent").value = "";
     showToast(err.message || "读取文件失败", true);
   }
-  $("fileSave").disabled = false;
 }
 
 async function saveFile() {
@@ -350,6 +380,35 @@ async function saveFile() {
   showToast("文件已保存");
 }
 
+// 上传本地图片替换当前图标文件（base64 写入，兼容沙箱 iframe）
+async function uploadIcon(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const dataUrl = String(reader.result || "");
+    const comma = dataUrl.indexOf(",");
+    if (comma < 0) {
+      showToast("读取图片失败", true);
+      return;
+    }
+    const mime = dataUrl.slice(5, comma).split(";")[0] || "image/png";
+    const b64 = dataUrl.slice(comma + 1);
+    try {
+      await bridge.apiPost(`theme/${editTarget.id}/file`, {
+        path: editFile,
+        base64: b64,
+        mime,
+      });
+      $("imagePreview").src = dataUrl;
+      $("imageMeta").textContent = `${editFile}（${mime}）`;
+      showToast("图标已更新，刷新 Blockly 编辑页面后生效");
+    } catch (err) {
+      showToast(err.message || "上传图标失败", true);
+    }
+  };
+  reader.onerror = () => showToast("读取图片失败", true);
+  reader.readAsDataURL(file);
+}
+
 /* ---------- 启动 ---------- */
 
 async function init() {
@@ -364,6 +423,14 @@ async function init() {
       e.target.value = "";
     };
     $("fileSave").onclick = saveFile;
+    $("imageUploadBtn").onclick = () => $("imageUploadFile").click();
+    $("imageUploadFile").onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        uploadIcon(file);
+      }
+      e.target.value = "";
+    };
     await loadState();
     renderThemeList();
   } catch (err) {

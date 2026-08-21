@@ -501,3 +501,64 @@ def test_theme_create(tmp_path):
     assert res2["name"] == "新主题 (2)"
     assert res2["id"] != tid
     REQUEST_STATE["json"] = None
+
+
+def test_theme_create_includes_icons(tmp_path):
+    """新增主题包含默认 UI 图标（img/ 单独文件夹）。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+    REQUEST_STATE["json"] = {}
+    res = asyncio.run(plugin.api_create_theme())
+    tid = res["id"]
+    REQUEST_STATE["json"] = None
+    paths = {f["path"] for f in res["files"]}
+    assert any(p.startswith("img/") for p in paths)
+    # 图标为可读的二进制文件
+    assert plugin.themes.read_file_bytes(tid, "img/icon.png") is not None
+
+
+def test_theme_export_builtin_includes_icons(tmp_path):
+    """内置主题导出含默认 UI 图标（img/ 文件夹）。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+    result, captured = _export_theme_captured(plugin, {"tid": "default"})
+    assert result is not None
+    with zipfile.ZipFile(captured["path"]) as zf:
+        names = set(zf.namelist())
+    assert any(n.startswith("img/") for n in names)
+
+
+def test_theme_file_binary_roundtrip(tmp_path):
+    """二进制文件（图片图标）：base64 保存与读取，文本文件仍返回 content。"""
+    plugin = _make_plugin_with_theme(tmp_path)
+    REQUEST_STATE["json"] = {
+        "file_b64": base64.b64encode(_build_theme_zip(".a{}")).decode("ascii"),
+    }
+    res = asyncio.run(plugin.api_import_theme())
+    tid = res["active"]
+    REQUEST_STATE["json"] = None
+
+    # base64 保存 PNG 图标到 img/icon.png
+    png = b"\x89PNG\r\n\x1a\nfake-png-content"
+    REQUEST_STATE["json"] = {
+        "path": "img/icon.png",
+        "base64": base64.b64encode(png).decode("ascii"),
+    }
+    s = asyncio.run(plugin.api_theme_file_save(tid))
+    assert s["ok"] is True
+    REQUEST_STATE["json"] = None
+
+    # 读取：二进制返回 base64 + mime，不含 content
+    REQUEST_STATE["query"] = {"path": "img/icon.png"}
+    f = asyncio.run(plugin.api_theme_file(tid))
+    assert f["ok"] is True
+    assert f["base64"] == base64.b64encode(png).decode("ascii")
+    assert f["mime"] == "image/png"
+    assert "content" not in f
+    REQUEST_STATE["query"] = {}
+
+    # 文本文件仍返回 content
+    REQUEST_STATE["query"] = {"path": "theme.css"}
+    f2 = asyncio.run(plugin.api_theme_file(tid))
+    assert f2["ok"] is True
+    assert "content" in f2
+    assert "base64" not in f2
+    REQUEST_STATE["query"] = {}

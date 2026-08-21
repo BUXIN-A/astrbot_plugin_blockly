@@ -30,11 +30,22 @@ const IMG_GEAR =
 const IMG_SPRITES =
   "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2ZXJzaW9uPSIxLjEiIHdpZHRoPSI5NnB4IiBoZWlnaHQ9IjEyNHB4Ij4KICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgojYmFja2dyb3VuZCB7CiAgZmlsbDogbm9uZTsKfQouYXJyb3dzIHsKICBmaWxsOiAjMDAwOwogIHN0cm9rZTogbm9uZTsKfQouc2VsZWN0ZWQ+LmFycm93cyB7CiAgZmlsbDogI2ZmZjsKfQouY2hlY2ttYXJrIHsKICBmaWxsOiAjMDAwOwogIGZvbnQtZmFtaWx5OiBzYW5zLXNlcmlmOwogIGZvbnQtc2l6ZTogMTBwdDsKICB0ZXh0LWFuY2hvcjogbWlkZGxlOwp9Ci50cmFzaCB7CiAgZmlsbDogIzg4ODsKfQouem9vbSB7CiAgZmlsbDogbm9uZTsKICBzdHJva2U6ICM4ODg7CiAgc3Ryb2tlLXdpZHRoOiAyOwogIHN0cm9rZS1saW5lY2FwOiByb3VuZDsKfQouem9vbT4uY2VudGVyIHsKICBmaWxsOiAjODg4OwogIHN0cm9rZS13aWR0aDogMDsKfQogIDwvc3R5bGU+CiAgPHJlY3QgaWQ9ImJhY2tncm91bmQiIHdpZHRoPSI5NiIgaGVpZ2h0PSIxMjQiIHg9IjAiIHk9IjAiIC8+CgogIDxnPgogICAgPHBhdGggY2xhc3M9ImFycm93cyIgZD0iTSAxMywxLjUgMTMsMTQuNSAxLjc0LDggeiIgLz4KICAgIDxwYXRoIGNsYXNzPSJhcnJvd3MiIGQ9Ik0gMTcuNSwzIDMwLjUsMyAyNCwxNC4yNiB6IiAvPgogICAgPHBhdGggY2xhc3M9ImFycm93cyIgZD0iTSAzNSwxLjUgMzUsMTQuNSA0Ni4yNiw4IHoiIC8+CiAgPC9nPgogIDxnIGNsYXNzPSJzZWxlY3RlZCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwgMTYpIj4KICAgIDxwYXRoIGNsYXNzPSJhcnJvd3MiIGQ9Ik0gMTMsMS41IDEzLDE0LjUgMS43NCw4IHoiIC8+CiAgICA8cGF0aCBjbGFzcz0iYXJyb3dzIiBkPSJNIDE3LjUsMyAzMC41LDMgMjQsMTQuMjYgeiIgLz4KICAgIDxwYXRoIGNsYXNzPSJhcnJvd3MiIGQ9Ik0gMzUsMS41IDM1LDE0LjUgNDYuMjYsOCB6IiAvPgogIDwvZz4KCiAgPHRleHQgY2xhc3M9ImNoZWNrbWFyayIgeD0iNTUuNSIgeT0iMjgiPiYjMTAwMDM7PC90ZXh0PgoKICA8ZyBjbGFzcz0idHJhc2giPgogICAgPHBhdGggZD0iTSAyLDQxIHYgNiBoIDQyIHYgLTYgaCAtMTAuNSBsIC0zLC0zIGggLTE1IGwgLTMsMyB6IiAvPgogICAgPHJlY3Qgd2lkdGg9IjM2IiBoZWlnaHQ9IjIwIiB4PSI1IiB5PSI1MCIgLz4KICAgIDxyZWN0IHdpZHRoPSIzNiIgaGVpZ2h0PSI0MiIgeD0iNSIgeT0iNTAiIHJ4PSI0IiByeT0iNCIgLz4KICA8L2c+CgogIDxnIGNsYXNzPSJ6b29tIj4KICAgIDxjaXJjbGUgcj0iMTEuNSIgY3g9IjE2IiBjeT0iMTA4IiAvPgogICAgPGNpcmNsZSByPSI0LjMiIGN4PSIxNiIgY3k9IjEwOCIgY2xhc3M9ImNlbnRlciIgLz4KICAgIDxwYXRoIGQ9Im0gMjgsMTA4IGgzIiAvPgogICAgPHBhdGggZD0ibSAxLDEwOCBoMyIgLz4KICAgIDxwYXRoIGQ9Im0gMTYsMTIwIHYzIiAvPgogICAgPHBhdGggZD0ibSAxNiw5MyB2MyIgLz4KICA8L2c+CgogIDxnIGNsYXNzPSJ6b29tIj4KICAgIDxjaXJjbGUgcj0iMTUiIGN4PSI0OCIgY3k9IjEwOCIgLz4KICAgIDxwYXRoIGQ9Im0gNDgsMTAxLjYgdjEyLjgiIC8+CiAgICA8cGF0aCBkPSJtIDQxLjYsMTA4IGgxMi44IiAvPgogIDwvZz4KCiAgPGcgY2xhc3M9Inpvb20iPgogICAgPGNpcmNsZSByPSIxNSIgY3g9IjgwIiBjeT0iMTA4IiAvPgogICAgPHBhdGggZD0ibSA3My42LDEwOCBoMTIuOCIgLz4KICA8L2c+Cjwvc3ZnPgo=";
 
+// 主题图标覆盖表：{ "img/copy.png": dataURI, ... }，激活主题含 img/ 文件时填充。
+// 优先级高于内置 IMG_* data URI，实现「UI 图标可被主题修改」。
+let themeIcons = {};
+
+// 获取图标地址：主题覆盖优先，否则使用内置默认（data URI）
+function iconUri(relPath, fallback) {
+  return themeIcons[relPath] || fallback;
+}
+
 let bridge = window.AstrBotPluginPage;
 // 工具栏「启用」开关图标：运行时按启用状态切换（data URI，避免 401）。
 const toolbarCheckImg = $("enabledCheck").nextElementSibling;
 function syncToolbarCheckIcon() {
-  toolbarCheckImg.src = $("enabledCheck").checked ? IMG_CHECK_OK : IMG_CHECK;
+  toolbarCheckImg.src = $("enabledCheck").checked
+    ? iconUri("img/check_ok.png", IMG_CHECK_OK)
+    : iconUri("img/check.png", IMG_CHECK);
 }
 let workspace = null;
 let currentId = null;
@@ -751,7 +762,7 @@ function defineBlocks() {
       this.appendDummyInput().appendField(this.modelLabel_);
       this.appendDummyInput().appendField(
         new Blockly.FieldImage(
-          IMG_GEAR,
+          iconUri("img/gear.svg", IMG_GEAR),
           18,
           18,
           "配置指定模型",
@@ -792,7 +803,7 @@ function defineBlocks() {
       this.appendDummyInput().appendField("格式化文本创建");
       this.appendDummyInput().appendField(
         new Blockly.FieldImage(
-          IMG_GEAR,
+          iconUri("img/gear.svg", IMG_GEAR),
           18,
           18,
           "编辑模板",
@@ -842,7 +853,7 @@ function defineBlocks() {
         .appendField(new Blockly.FieldTextInput("my_func"), "NAME");
       this.appendDummyInput().appendField(
         new Blockly.FieldImage(
-          IMG_GEAR,
+          iconUri("img/gear.svg", IMG_GEAR),
           18,
           18,
           "编辑参数",
@@ -887,7 +898,7 @@ function defineBlocks() {
         .appendField(new Blockly.FieldTextInput("my_func"), "NAME");
       this.appendDummyInput().appendField(
         new Blockly.FieldImage(
-          IMG_GEAR,
+          iconUri("img/gear.svg", IMG_GEAR),
           18,
           18,
           "编辑参数",
@@ -1339,7 +1350,9 @@ function setTrashcanVisible(on) {
     trashcanToggleCheck.checked = on;
   }
   if (trashcanToggleImg) {
-    trashcanToggleImg.src = on ? IMG_CHECK_OK : IMG_CHECK;
+    trashcanToggleImg.src = on
+      ? iconUri("img/check_ok.png", IMG_CHECK_OK)
+      : iconUri("img/check.png", IMG_CHECK);
   }
 }
 
@@ -1377,7 +1390,9 @@ function addTrashcanToggle() {
   });
   const img = document.createElement("img");
   img.className = "toggle-check";
-  img.src = input.checked ? IMG_CHECK_OK : IMG_CHECK;
+  img.src = input.checked
+    ? iconUri("img/check_ok.png", IMG_CHECK_OK)
+    : iconUri("img/check.png", IMG_CHECK);
   img.alt = "收纳盒常驻开关";
   toggle.appendChild(input);
   toggle.appendChild(img);
@@ -1397,10 +1412,12 @@ function patchTrashcanSprites() {
   const XLinkNS = "http://www.w3.org/1999/xlink";
   for (const img of images) {
     const href = img.getAttribute("href") || "";
-    if (href.indexOf("sprites.svg") !== -1) img.setAttribute("href", IMG_SPRITES);
+    if (href.indexOf("sprites.svg") !== -1) {
+      img.setAttribute("href", iconUri("img/sprites.svg", IMG_SPRITES));
+    }
     const xlink = img.getAttributeNS(XLinkNS, "href") || "";
     if (xlink.indexOf("sprites.svg") !== -1) {
-      img.setAttributeNS(XLinkNS, "href", IMG_SPRITES);
+      img.setAttributeNS(XLinkNS, "href", iconUri("img/sprites.svg", IMG_SPRITES));
     }
   }
 }
@@ -1514,7 +1531,10 @@ function renderSidebar() {
     const dupBtn = document.createElement("button");
     dupBtn.className = "icon-btn";
     dupBtn.title = "复制";
-    dupBtn.innerHTML = `<img class="icon" src="${IMG_COPY}" alt="复制" />`;
+    dupBtn.innerHTML = `<img class="icon" src="${iconUri(
+      "img/copy.png",
+      IMG_COPY,
+    )}" alt="复制" />`;
     dupBtn.onclick = (e) => {
       e.stopPropagation();
       duplicateProgram(p.id);
@@ -1522,7 +1542,10 @@ function renderSidebar() {
     const delBtn = document.createElement("button");
     delBtn.className = "icon-btn danger";
     delBtn.title = "删除";
-    delBtn.innerHTML = `<img class="icon" src="${IMG_DELETE}" alt="删除" />`;
+    delBtn.innerHTML = `<img class="icon" src="${iconUri(
+      "img/delete.png",
+      IMG_DELETE,
+    )}" alt="删除" />`;
     delBtn.onclick = (e) => {
       e.stopPropagation();
       deleteProgram(p.id);
@@ -1539,11 +1562,15 @@ function renderSidebar() {
     toggleInput.checked = !!p.enabled;
     const toggleImg = document.createElement("img");
     toggleImg.className = "toggle-check";
-    toggleImg.src = toggleInput.checked ? IMG_CHECK_OK : IMG_CHECK;
+    toggleImg.src = toggleInput.checked
+      ? iconUri("img/check_ok.png", IMG_CHECK_OK)
+      : iconUri("img/check.png", IMG_CHECK);
     toggleImg.alt = "启用";
     toggleInput.onclick = (e) => {
       e.stopPropagation();
-      toggleImg.src = toggleInput.checked ? IMG_CHECK_OK : IMG_CHECK;
+      toggleImg.src = toggleInput.checked
+        ? iconUri("img/check_ok.png", IMG_CHECK_OK)
+        : iconUri("img/check.png", IMG_CHECK);
       toggleProgram(p.id, toggleInput.checked);
     };
     toggle.appendChild(toggleInput);
@@ -1767,11 +1794,13 @@ function filterToolbox(keyword) {
 
 /* ---------- 主题应用 ---------- */
 
-// 主题设置已迁移到独立的「Blockly 主题设置」页面，编辑器只负责应用激活主题的 CSS。
+// 主题设置已迁移到独立的「Blockly 主题设置」页面，编辑器只负责应用激活主题的
+// CSS 与 UI 图标（img/ 目录文件按文件名匹配覆盖页面图标）。
 async function initTheme() {
   try {
     const res = await apiGet("theme");
     applyThemeCss(res.active_css || "");
+    await applyThemeIcons(res);
   } catch (err) {
     showToast(err.message || "加载主题设置失败", true);
   }
@@ -1787,6 +1816,45 @@ function applyThemeCss(css) {
   style.textContent = css || "";
 }
 
+// 加载激活主题的 img/ 图标为 data URI，替换页面静态图标；
+// 动态创建的图标（复制/删除/开关/齿轮/收纳盒等）通过 iconUri 自动使用覆盖值。
+async function applyThemeIcons(themeData) {
+  const active = themeData.active;
+  const custom = (themeData.custom_themes || []).find((t) => t.id === active);
+  const icons = {};
+  if (custom) {
+    const iconFiles = (custom.files || []).filter((f) =>
+      f.path.startsWith("img/")
+    );
+    for (const f of iconFiles) {
+      try {
+        const res = await apiGet(`theme/${active}/file`, { path: f.path });
+        if (res && res.base64) {
+          icons[f.path] =
+            `data:${res.mime || "image/png"};base64,${res.base64}`;
+        }
+      } catch (err) {
+        // 单个图标加载失败不影响其他
+      }
+    }
+  }
+  themeIcons = icons;
+  applyStaticIcons();
+}
+
+// 替换页面中 <img src="…/img/xxx.png"> 的静态图标引用
+function applyStaticIcons() {
+  for (const img of document.querySelectorAll("img")) {
+    const src = img.getAttribute("src") || "";
+    const m = src.match(/img\/([^/?#]+)/);
+    if (!m) continue;
+    const key = `img/${m[1]}`;
+    if (themeIcons[key]) {
+      img.src = themeIcons[key];
+    }
+  }
+}
+
 // 点击「主题」按钮切换到独立的主题设置页面。
 // 插件页面 URL 为 /api/plugin/page/content/<插件>/<页面>/...，把当前页面段替换为
 // blockly-theme 并回到页面根，服务端会自动为新页面签发 asset_token（页面访问由
@@ -1796,15 +1864,15 @@ function gotoThemePage() {
   const isPluginPage =
     parts.length >= 6 &&
     parts[0] === "api" &&
-    parts[2] === "plugin" &&
-    parts[3] === "page" &&
-    parts[4] === "content";
+    parts[1] === "plugin" &&
+    parts[2] === "page" &&
+    parts[3] === "content";
   if (isPluginPage) {
     parts[5] = "blockly-theme";
     parts.length = 6;
     window.location.href = "/" + parts.join("/");
   } else {
-    showToast("主题设置已移至独立的「Blockly 主题设置」页面", true);
+    showToast("无法定位「Blockly 主题设置」页面", true);
   }
 }
 
@@ -2296,7 +2364,10 @@ function renderModelEditList() {
     const remove = document.createElement("button");
     remove.className = "icon-btn danger";
     remove.title = "移除";
-    remove.innerHTML = `<img class="icon icon-sm" src="${IMG_DELETE}" alt="移除" />`;
+    remove.innerHTML = `<img class="icon icon-sm" src="${iconUri(
+      "img/delete.png",
+      IMG_DELETE,
+    )}" alt="移除" />`;
     remove.onclick = () => {
       selectedModels.splice(idx, 1);
       renderModelEditList();
@@ -2421,7 +2492,10 @@ function renderBlockModelEditList() {
     const remove = document.createElement("button");
     remove.className = "icon-btn danger";
     remove.title = "移除";
-    remove.innerHTML = `<img class="icon icon-sm" src="${IMG_DELETE}" alt="移除" />`;
+    remove.innerHTML = `<img class="icon icon-sm" src="${iconUri(
+      "img/delete.png",
+      IMG_DELETE,
+    )}" alt="移除" />`;
     remove.onclick = () => {
       blockModels.splice(idx, 1);
       renderBlockModelEditList();
@@ -2732,8 +2806,9 @@ function bindEvents() {
     });
     bindEvents();
     loadAvailableModels();
+    // 先应用主题（CSS + UI 图标）再渲染程序列表，保证动态图标使用主题图标
+    await initTheme();
     await refreshPrograms();
-    await initTheme(); // 应用激活主题的 CSS（主题设置见独立页面）
     if (programs.length) {
       await selectProgram(programs[0].id);
     }
