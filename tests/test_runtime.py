@@ -693,3 +693,70 @@ def test_has_type_text_pure_text():
     )
     result2 = asyncio.run(run_sim(program2, message="hi", message_type="image"))
     assert "False,True" in result2["replies"]
+
+
+def test_json_keys():
+    """JSON 所有键块：返回字典键列表（支持直接传 JSON 字符串）。"""
+    program = BlocklyProgram(
+        code="""
+await _blk.reply(str(_blk.json_keys('{"a":1,"b":2,"c":3}')))
+await _blk.reply(str(_blk.json_keys({'x': 1})))
+await _blk.reply(str(_blk.json_keys('[1,2]')))
+""",
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert "['a', 'b', 'c']" in result["replies"]
+    assert "['x']" in result["replies"]
+    assert "[]" in result["replies"]
+
+
+def test_to_list_smart_conversion():
+    """类型转换为列表：字符串按 JSON 数组/换行/逗号智能解析，而非逐字符拆散。"""
+    program = BlocklyProgram(
+        code="""
+await _blk.reply(str(_blk.to_list('["a", "b", "c"]')))
+await _blk.reply(str(_blk.to_list('第一行\\n第二行')))
+await _blk.reply(str(_blk.to_list('x, y, z')))
+await _blk.reply(str(_blk.to_list({'k1': 1, 'k2': 2})))
+await _blk.reply(str(_blk.to_list((1, 2))))
+await _blk.reply(str(_blk.to_list(42)))
+""",
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert result["error"] == ""
+    assert "['a', 'b', 'c']" in result["replies"]
+    assert "['第一行', '第二行']" in result["replies"]
+    assert "['x', 'y', 'z']" in result["replies"]
+    assert "['k1', 'k2']" in result["replies"]
+    assert "[1, 2]" in result["replies"]
+    assert "[42]" in result["replies"]
+
+
+def test_to_list_json_like_python_repr():
+    """回归：字符串为 Python 列表字面量格式时解析为真实列表（test.txt 场景）。"""
+    text = (
+        '[\n    "20260820 223600\\n我受不了了，为什么要冤枉我，我凭什么受罪\\n😢\\n我只是想要放松一会，就那么一会！",\n'
+        '    "20260820 224935\\n好烦，睡了，哈哈"\n]'
+    )
+    program = BlocklyProgram(
+        code=f"await _blk.reply(str(_blk.to_list({text!r})))",
+    )
+    result = asyncio.run(run_sim(program, message="x"))
+    assert result["error"] == ""
+    assert result["replies"][0].startswith("[")
+    assert "我受不了了" in result["replies"][0]
+    assert "好烦，睡了" in result["replies"][0]
+
+
+def test_type_cast_list_generated_code():
+    """类型转换积木「列表」生成器输出 _blk.to_list，可编译执行。"""
+    code = (
+        "if _blk.event_type == 'message':\n"
+        "    await _blk.reply(str(_blk.to_list(_blk.get_message())))\n"
+    )
+    source = wrap_code(code)
+    _assert_safe_source(source)
+    compile(source, "<test>", "exec")
+    program = BlocklyProgram(code=code)
+    result = asyncio.run(run_sim(program, message='["甲", "乙"]'))
+    assert "['甲', '乙']" in result["replies"]

@@ -693,6 +693,14 @@ function defineBlocks() {
       tooltip: "从 JSON 对象（字典）中按键取值；对象可为 JSON 字符串，键不存在时返回默认值。",
     },
     {
+      type: "blockly_json_keys",
+      message0: "JSON 所有键 %1",
+      args0: [{ type: "input_value", name: "OBJ" }],
+      output: null,
+      colour: 330,
+      tooltip: "返回 JSON 对象（字典）的所有键组成的列表；对象可为 JSON 字符串。",
+    },
+    {
       type: "blockly_text_split",
       message0: "按 %1 分割 %2",
       args0: [
@@ -1195,10 +1203,14 @@ function registerPythonGenerator() {
     return "return " + val + "\n";
   };
 
-  // 类型转换：str/int/float/bool/list 均为沙箱白名单内置函数。
+  // 类型转换：str/int/float/bool 为沙箱白名单内置函数；
+  // 列表用 _blk.to_list（字符串优先按 JSON 数组解析，避免逐字符拆散）。
   py.forBlock["blockly_type_cast"] = function (block) {
     const value = py.valueToCode(block, "VALUE", py.ORDER_NONE) || "None";
     const type = block.getFieldValue("TYPE") || "str";
+    if (type === "list") {
+      return [`_blk.to_list(${value})`, py.ORDER_FUNCTION_CALL];
+    }
     return [`${type}(${value})`, py.ORDER_FUNCTION_CALL];
   };
 
@@ -1222,6 +1234,11 @@ function registerPythonGenerator() {
     const key = py.valueToCode(block, "KEY", py.ORDER_NONE) || "''";
     const def = py.valueToCode(block, "DEFAULT", py.ORDER_NONE) || "None";
     return [`_blk.json_get(${obj}, ${key}, ${def})`, py.ORDER_FUNCTION_CALL];
+  };
+
+  py.forBlock["blockly_json_keys"] = function (block) {
+    const obj = py.valueToCode(block, "OBJ", py.ORDER_NONE) || "{}";
+    return [`_blk.json_keys(${obj})`, py.ORDER_FUNCTION_CALL];
   };
 
   py.forBlock["blockly_text_split"] = function (block) {

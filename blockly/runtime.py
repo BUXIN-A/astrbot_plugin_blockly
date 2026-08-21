@@ -739,6 +739,53 @@ class BlocklyRuntime:
             return obj.get(key, default)
         return default
 
+    def json_keys(self, obj: Any) -> list:
+        """返回 JSON 对象（字典）的所有键；传入 JSON 字符串时会先解析。"""
+        if isinstance(obj, str):
+            try:
+                obj = json.loads(obj)
+            except (TypeError, ValueError):
+                return []
+        if isinstance(obj, dict):
+            return list(obj.keys())
+        return []
+
+    def to_list(self, value: Any) -> list:
+        """把值转换为列表：字符串优先按 JSON 数组解析，否则按换行/逗号分割。
+
+        修复 ``list(str)`` 会把整个字符串逐字符拆散的问题：当字符串本身是
+        列表格式（如 JSON 数组）时解析为真正的列表元素。
+        """
+        if isinstance(value, (list, tuple, set)):
+            return list(value)
+        if isinstance(value, dict):
+            return list(value.keys())
+        if not isinstance(value, str):
+            try:
+                return list(value)
+            except TypeError:  # 不可迭代的标量（数字等）包装为单元素列表
+                return [value]
+        text = value.strip()
+        if not text:
+            return []
+        # 字符串是 JSON 数组时直接解析为列表
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return parsed
+        except (TypeError, ValueError):
+            pass
+        # 否则按换行分割（仅当文本为多行时），去空行与首尾空白
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(lines) > 1:
+            return lines
+        # 单行文本按逗号分割
+        parts = [part.strip() for part in text.split(",") if part.strip()]
+        if parts:
+            return parts
+        # 单行无分隔符：整行作为单个元素
+        return lines
+
 
 def _has_blocks(workspace_json: str) -> bool:
     """判断积木工作区 JSON 中是否含有实际积木。"""

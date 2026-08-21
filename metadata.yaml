@@ -26,7 +26,8 @@ desc: |
   - 「全局函数」积木：定义一次、任意程序调用，支持参数与返回值。
   - 「回复/返回/发送」积木支持消息类型选择：文本 / 图片 / 语音。
   - 事件入口支持「群成员退群」；新增类型转换、类型判断、JSON 处理、文本分割、消息属性判断积木。
-version: v0.6.5
+  - 「JSON」积木含所有键获取；「类型转换-列表」按 JSON 数组/换行/逗号智能解析。
+version: v0.6.6
 author: BUXIN-A
 repo: https://github.com/BUXIN-A/astrbot_plugin_blockly
 support_platforms:
