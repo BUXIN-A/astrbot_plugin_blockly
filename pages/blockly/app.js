@@ -1855,25 +1855,6 @@ function applyStaticIcons() {
   }
 }
 
-// 点击「主题」按钮切换到主题设置页面。
-// 插件页 iframe 沙箱（无 allow-same-origin）下无法直接整页导航插件页面资源路径
-// （不带 Dashboard 授权头会 401），也无法加载 Dashboard SPA（localStorage 不可用
-// 会白屏）。改由插件 API 返回带 Dashboard token 的目标页面地址后整页跳转。
-function gotoThemePage() {
-  bridge
-    .apiGet("theme/jump")
-    .then((res) => {
-      if (res && res.url) {
-        window.location.href = res.url;
-      } else {
-        showToast("无法跳转到「Blockly 主题设置」页面", true);
-      }
-    })
-    .catch((err) => {
-      showToast(err.message || "无法跳转到「Blockly 主题设置」页面", true);
-    });
-}
-
 function collectForm() {
   const triggerType = $("triggerType").value;
   const triggerValue =
@@ -2763,8 +2744,14 @@ function bindEvents() {
     searchTimer = setTimeout(() => filterToolbox(e.target.value), 200);
   });
 
-  // 主题设置已迁移到独立的「Blockly 主题设置」页面，点击直接跳转
-  $("themeBtn").onclick = gotoThemePage;
+  // 主题设置已迁移到独立的「Blockly 主题设置」页面。
+  // 插件页 iframe 沙箱无法自动跳转，弹窗引导用户进入插件详情页后切换页面。
+  $("themeBtn").onclick = () => {
+    confirmDialog("在插件界面进入详情页，然后进入主题设置界面", {
+      title: "主题设置",
+      okText: "知道了",
+    });
+  };
 
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {
