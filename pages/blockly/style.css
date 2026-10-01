@@ -48,7 +48,7 @@ body {
 
 .app {
   display: flex;
-  height: 100vh;
+  height: 100%;
 }
 
 /* ---------- sidebar ---------- */
@@ -1011,6 +1011,398 @@ html[data-theme="dark"] .blocklyScrollbarBackground {
 .block-search:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* ---------- 顶部视图切换（编辑区 / 主题设置） ---------- */
+
+.view-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 42px;
+  padding: 0 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.view-tab {
+  appearance: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 14px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.view-tab:hover {
+  color: var(--text);
+}
+
+.view-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.view {
+  height: calc(100vh - 43px);
+  overflow: hidden;
+}
+
+.view.hidden {
+  display: none !important;
+}
+
+/* ---------- 主题设置视图 ---------- */
+
+/* 主题只作用于 Blockly 编辑区：这里用 ID 选择器重置变量，
+   优先级高于主题 CSS 对 :root 的覆盖，保证设置界面自身样式稳定。 */
+#themeView {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --border: #dde1e6;
+  --text: #1f2328;
+  --muted: #6b7280;
+  --muted-strong: #4b5563;
+  --primary: #3b82f6;
+  --primary-hover: #2f6fe0;
+  --primary-soft: #e8f0fe;
+  --danger: #ef4444;
+  --ok: #16a34a;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: var(--bg);
+  color: var(--text);
+}
+
+html[data-theme="dark"] #themeView {
+  --bg: #16181d;
+  --panel: #1f232b;
+  --border: #33383f;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --muted-strong: #cbd5e1;
+  --primary: #4f8ff7;
+  --primary-hover: #6ba3fa;
+  --primary-soft: #1e2c47;
+  --danger: #f87171;
+  --ok: #4ade80;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+#themeView .theme-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 18px;
+  gap: 14px;
+}
+
+/* 头部 */
+#themeView .theme-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+#themeView .theme-header h1 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+#themeView .theme-header-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 760px;
+  line-height: 1.6;
+}
+
+#themeView .theme-header-desc code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-family: Consolas, Monaco, "Courier New", monospace;
+  font-size: 12px;
+}
+
+#themeView .theme-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 主体两栏 */
+#themeView .theme-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 14px;
+}
+
+#themeView .theme-panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--muted-strong);
+}
+
+#themeView .theme-panel {
+  width: 320px;
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+#themeView .theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#themeView .theme-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--panel);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+#themeView .theme-item:hover {
+  border-color: var(--primary);
+}
+
+#themeView .theme-item.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+#themeView .theme-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+#themeView .theme-name {
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-all;
+}
+
+#themeView .theme-desc {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#themeView .theme-item-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+#themeView .theme-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted-strong);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+#themeView .theme-icon-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* 内置主题的禁用按钮：灰化、不可点击 */
+#themeView .theme-icon-btn.disabled {
+  color: var(--muted);
+  background: var(--bg);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+#themeView .theme-icon-btn.disabled:hover {
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+/* 右侧：文件编辑 */
+#themeView .theme-editor-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+#themeView .theme-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+#themeView .theme-editor-head .theme-panel-title {
+  margin: 0;
+}
+
+#themeView .theme-editor-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+#themeView .theme-editor-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+}
+
+#themeView .theme-file-tree {
+  width: 38%;
+  min-width: 170px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg);
+}
+
+#themeView .theme-file-tree-empty {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 16px 8px;
+}
+
+#themeView .theme-file-tree-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  word-break: break-all;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+#themeView .theme-file-tree-item:hover {
+  border-color: var(--primary);
+}
+
+#themeView .theme-file-tree-item.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+#themeView .theme-file-tree-size {
+  color: var(--muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+#themeView .theme-editor-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+#themeView .theme-file-content {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  resize: none;
+  font-family: Consolas, Monaco, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+
+#themeView .theme-file-content:focus {
+  border-color: var(--primary);
+}
+
+/* 图标预览模式 */
+#themeView .theme-image-edit {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 20px;
+}
+
+#themeView .theme-image-meta {
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+  text-align: center;
+}
+
+#themeView .theme-image-preview {
+  max-width: 180px;
+  max-height: 180px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px;
 }
 
 

@@ -12,6 +12,13 @@
   <script src="vendor/python_compressed.js"></script>
 </head>
 <body>
+  <!-- 顶部视图切换：编辑区 / 主题设置（同一插件页内切换，不重新加载页面） -->
+  <nav class="view-tabs">
+    <button type="button" class="view-tab active" id="tabEditor">Blockly 可视化编程</button>
+    <button type="button" class="view-tab" id="tabTheme">主题设置</button>
+  </nav>
+
+  <div class="view" id="editorView">
   <div class="app">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -49,7 +56,7 @@
         </div>
         <div class="toolbar-right">
           <input class="input block-search" id="blockSearch" placeholder="搜索积木…" title="输入关键词筛选工具箱中的积木（支持名称/类型）" />
-          <button class="btn" id="themeBtn" title="打开独立的「Blockly 主题设置」页面">
+          <button type="button" class="btn" id="themeBtn" title="切换到「主题设置」">
             <span>主题</span>
           </button>
           <label class="switch-wrap icon-toggle" title="启用该程序">
@@ -100,6 +107,60 @@
         <textarea id="codeEditor" spellcheck="false" placeholder="# 在此直接编写 Python 代码&#10;# 可用：event（消息事件）、ctx（AstrBot 上下文）、_blk（Blockly 操作对象）&#10;# 示例：&#10;await _blk.reply('你好，' + _blk.get_sender_name())"></textarea>
       </div>
     </main>
+  </div>
+  </div>
+
+  <!-- 主题设置视图：与编辑区在同一个插件页内切换 -->
+  <div class="view hidden" id="themeView">
+    <div class="theme-page">
+      <header class="theme-header">
+        <div class="theme-header-main">
+          <h1>Blockly 主题设置</h1>
+          <p class="theme-header-desc">
+            主题用于定制 Blockly 编辑器的界面样式（<code>theme.css</code>）与 UI 图标（<code>img/</code> 文件夹），
+            只影响「Blockly 可视化编程」编辑区，不影响本设置界面。切换/编辑主题后编辑区即时生效（图标需重新进入页面）。
+          </p>
+        </div>
+        <div class="theme-header-actions">
+          <button type="button" class="btn" id="themeCreateBtn" title="新建主题（内容为默认主题样式）">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>新增主题</span>
+          </button>
+          <button type="button" class="btn" id="themeImportBtn" title="导入 zip 主题包">导入主题（zip）</button>
+          <input type="file" id="themeImportFile" accept=".zip,application/zip" hidden />
+        </div>
+      </header>
+
+      <div class="theme-body">
+        <aside class="theme-panel">
+          <div class="theme-panel-title">主题列表</div>
+          <div class="theme-list" id="themeList"></div>
+        </aside>
+
+        <main class="theme-editor-panel">
+          <div class="theme-editor-head">
+            <div class="theme-panel-title" id="themeEditorTitle">文件编辑</div>
+            <button type="button" class="btn btn-primary" id="themeFileSave" disabled>保存</button>
+          </div>
+          <div class="theme-editor-empty" id="themeEditorEmpty">
+            点击左侧自定义主题的「设置」按钮，可查看与编辑该主题内的文件（如 theme.css）
+          </div>
+          <div class="theme-editor-wrap hidden" id="themeEditorWrap">
+            <div class="theme-file-tree" id="themeFileTree"></div>
+            <div class="theme-editor-right">
+              <textarea class="theme-file-content" id="themeFileContent" spellcheck="false"
+                placeholder="点击左侧文件查看/编辑内容"></textarea>
+              <div class="theme-image-edit hidden" id="themeImageEdit">
+                <div class="theme-image-meta" id="themeImageMeta"></div>
+                <img class="theme-image-preview" id="themeImagePreview" alt="图标预览" />
+                <button type="button" class="btn" id="themeImageUploadBtn">上传替换</button>
+                <input type="file" id="themeImageUploadFile" accept="image/*" hidden />
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
   </div>
 
   <!-- 通用确认弹窗 -->

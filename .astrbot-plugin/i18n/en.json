@@ -6,11 +6,7 @@
   "pages": {
     "blockly": {
       "title": "Blockly Visual Programming",
-      "description": "Create programs with Blockly blocks (or raw Python) to control AstrBot."
-    },
-    "blockly-theme": {
-      "title": "Blockly Theme Settings",
-      "description": "Customize the Blockly editor UI: switch / import / export themes and edit custom theme files."
+      "description": "Create programs with Blockly blocks (or raw Python) to control AstrBot. Includes an in-page theme settings view."
     }
   }
 }

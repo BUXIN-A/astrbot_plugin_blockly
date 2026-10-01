@@ -1796,8 +1796,8 @@ function filterToolbox(keyword) {
 
 /* ---------- 主题应用 ---------- */
 
-// 主题设置已迁移到独立的「Blockly 主题设置」页面，编辑器只负责应用激活主题的
-// CSS 与 UI 图标（img/ 目录文件按文件名匹配覆盖页面图标）。
+// 编辑器负责应用激活主题的 CSS 与 UI 图标（img/ 目录文件按文件名匹配覆盖页面图标）；
+// 主题管理（切换/导入导出/文件编辑）在页内「主题设置」视图中完成，见下方。
 async function initTheme() {
   try {
     const res = await apiGet("theme");
@@ -1855,6 +1855,388 @@ function applyStaticIcons() {
       img.src = themeIcons[key];
     }
   }
+}
+
+/* ---------- 视图切换（编辑区 / 主题设置，同一插件页内切换） ---------- */
+
+let themeViewReady = false; // 主题设置界面是否已绑定事件并加载数据
+
+function switchView(view) {
+  const isTheme = view === "theme";
+  $("editorView").classList.toggle("hidden", isTheme);
+  $("themeView").classList.toggle("hidden", !isTheme);
+  $("tabEditor").classList.toggle("active", !isTheme);
+  $("tabTheme").classList.toggle("active", isTheme);
+  if (isTheme) {
+    if (!themeViewReady) {
+      themeViewReady = true;
+      bindThemeEvents();
+      loadThemeState()
+        .then(renderThemeList)
+        .catch((err) => showToast(err.message || "加载主题设置失败", true));
+    }
+    return;
+  }
+  // 编辑区从 display:none 恢复后，Blockly 需要重新测量容器尺寸
+  if (workspace) Blockly.svgResize(workspace);
+}
+
+/* ---------- 主题设置 ---------- */
+
+let themeState = { active: "default", builtin: [], customThemes: [] };
+let themeEditTarget = null; // 正在编辑的主题 {id, name, files}
+let themeEditFile = ""; // 当前编辑的文件相对路径
+
+function fmtSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+async function loadThemeState() {
+  const res = await apiGet("theme");
+  themeState = {
+    active: res.active || "default",
+    builtin: res.builtin || [],
+    customThemes: res.custom_themes || [],
+  };
+  return themeState;
+}
+
+// 主题条目上的图标按钮（SVG 内联，避免图片资源 401）
+function themeIconButton(kind, title, disabled) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "theme-icon-btn" + (disabled ? " disabled" : "");
+  btn.title = title;
+  btn.disabled = !!disabled;
+  if (kind === "settings") {
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  } else if (kind === "export") {
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  } else {
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>';
+  }
+  return btn;
+}
+
+function renderThemeList() {
+  const list = $("themeList");
+  list.innerHTML = "";
+  const options = [
+    { id: "default", label: "默认主题", desc: "插件默认样式", builtin: true },
+    {
+      id: "dark",
+      label: "深色主题",
+      desc: "跟随 AstrBot 深色模式",
+      builtin: true,
+    },
+  ];
+  for (const t of themeState.customThemes) {
+    options.push({
+      id: t.id,
+      label: t.name,
+      desc: `自定义主题（${t.files.length} 个文件）`,
+      builtin: false,
+    });
+  }
+
+  for (const opt of options) {
+    const row = document.createElement("div");
+    row.className =
+      "theme-item" + (themeState.active === opt.id ? " active" : "");
+    row.title = "点击应用该主题";
+
+    const nameEl = document.createElement("span");
+    nameEl.className = "theme-name";
+    nameEl.textContent = opt.label;
+
+    const descEl = document.createElement("span");
+    descEl.className = "theme-desc";
+    descEl.textContent = opt.desc;
+
+    const info = document.createElement("span");
+    info.className = "theme-info";
+    info.append(nameEl, descEl);
+
+    const actions = document.createElement("span");
+    actions.className = "theme-item-actions";
+
+    // 设置（编辑文件）：内置主题禁用
+    const setBtn = themeIconButton(
+      "settings",
+      opt.builtin ? "内置主题不可编辑" : "编辑主题文件",
+      opt.builtin,
+    );
+    if (!opt.builtin) {
+      setBtn.onclick = (e) => {
+        e.stopPropagation();
+        openThemeEditor({
+          id: opt.id,
+          name: opt.label,
+          files: themeState.customThemes.find((x) => x.id === opt.id)?.files || [],
+        });
+      };
+    }
+    actions.appendChild(setBtn);
+
+    // 导出：内置主题内容为默认样式，同样可导出以便复制修改
+    const expBtn = themeIconButton("export", "导出主题（zip）", false);
+    expBtn.onclick = (e) => {
+      e.stopPropagation();
+      exportThemeSetting(opt.id);
+    };
+    actions.appendChild(expBtn);
+
+    // 删除：内置主题禁用
+    const delBtn = themeIconButton(
+      "trash",
+      opt.builtin ? "内置主题不可删除" : "删除主题",
+      opt.builtin,
+    );
+    if (!opt.builtin) {
+      delBtn.onclick = (e) => {
+        e.stopPropagation();
+        deleteThemeSetting(opt.id, opt.label);
+      };
+    }
+    actions.appendChild(delBtn);
+
+    row.append(info, actions);
+    row.onclick = () => applyThemeSetting(opt.id);
+    list.appendChild(row);
+  }
+}
+
+async function applyThemeSetting(id) {
+  if (themeState.active === id) return;
+  try {
+    await apiPost("theme", { active: id });
+  } catch (err) {
+    showToast(err.message || "应用主题失败", true);
+    return;
+  }
+  themeState.active = id;
+  renderThemeList();
+  await initTheme();
+  showToast("主题已切换");
+}
+
+async function createThemeSetting() {
+  try {
+    const res = await apiPost("theme/create", {});
+    await loadThemeState();
+    renderThemeList();
+    // 创建后自动打开文件编辑，便于直接修改主题内容
+    openThemeEditor({ id: res.id, name: res.name, files: res.files || [] });
+    await initTheme();
+    showToast(`主题「${res.name}」已创建（内容为默认主题样式）`);
+  } catch (err) {
+    showToast(err.message || "新建主题失败", true);
+  }
+}
+
+async function importThemeSetting(file) {
+  if (!file) return;
+  try {
+    const res = await bridge.upload("theme/import", file);
+    themeState.active = res.active;
+    await loadThemeState();
+    renderThemeList();
+    await initTheme();
+    showToast(`主题「${res.name || "导入的主题"}」已导入并启用`);
+  } catch (err) {
+    showToast(err.message || "导入主题失败", true);
+  }
+}
+
+function exportThemeSetting(tid) {
+  bridge
+    .download("theme/export", { tid }, "blockly_theme.zip")
+    .catch((err) => showToast(err.message || "导出主题失败", true));
+}
+
+async function deleteThemeSetting(tid, label) {
+  const ok = await confirmDialog(`确定删除主题「${label}」吗？删除后不可恢复。`, {
+    title: "删除主题",
+    okText: "删除",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await apiPost(`theme/${tid}/delete`, {});
+  } catch (err) {
+    showToast(err.message || "删除主题失败", true);
+    return;
+  }
+  // 删除的是正在编辑的主题时关闭编辑区
+  if (themeEditTarget && themeEditTarget.id === tid) {
+    closeThemeEditor();
+  }
+  await loadThemeState();
+  renderThemeList();
+  await initTheme();
+  showToast("主题已删除");
+}
+
+/* ---------- 主题文件编辑 ---------- */
+
+function openThemeEditor(theme) {
+  themeEditTarget = theme;
+  themeEditFile = "";
+  $("themeEditorTitle").textContent = `编辑主题：${theme.name}`;
+  $("themeEditorEmpty").classList.add("hidden");
+  $("themeEditorWrap").classList.remove("hidden");
+  resetThemeFileEditor();
+  renderThemeFileTree();
+}
+
+function closeThemeEditor() {
+  themeEditTarget = null;
+  themeEditFile = "";
+  $("themeEditorTitle").textContent = "文件编辑";
+  $("themeEditorEmpty").classList.remove("hidden");
+  $("themeEditorWrap").classList.add("hidden");
+  resetThemeFileEditor();
+}
+
+// 重置编辑器右侧：回到文本模式并清空
+function resetThemeFileEditor() {
+  $("themeFileContent").value = "";
+  $("themeFileSave").disabled = true;
+  $("themeFileContent").classList.remove("hidden");
+  $("themeImageEdit").classList.add("hidden");
+  $("themeImagePreview").src = "";
+  $("themeImageUploadBtn").disabled = true;
+}
+
+// 显示文本编辑模式（CSS/JS 等文本文件）
+function showThemeTextEditor(content) {
+  $("themeFileContent").classList.remove("hidden");
+  $("themeImageEdit").classList.add("hidden");
+  $("themeFileContent").value = content || "";
+  $("themeFileSave").disabled = false;
+}
+
+// 显示图片预览模式（img/ 下的图标等二进制文件），支持上传替换
+function showThemeImageEditor(path, base64, mime) {
+  $("themeFileContent").classList.add("hidden");
+  $("themeImageEdit").classList.remove("hidden");
+  $("themeImageMeta").textContent = `${path}（${mime}）`;
+  $("themeImagePreview").src = `data:${mime};base64,${base64}`;
+  $("themeFileSave").disabled = true;
+  $("themeImageUploadBtn").disabled = false;
+}
+
+function renderThemeFileTree() {
+  const tree = $("themeFileTree");
+  tree.innerHTML = "";
+  if (!themeEditTarget || !themeEditTarget.files.length) {
+    tree.innerHTML = '<div class="theme-file-tree-empty">主题内没有文件</div>';
+    return;
+  }
+  for (const f of themeEditTarget.files) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className =
+      "theme-file-tree-item" + (f.path === themeEditFile ? " active" : "");
+    item.title = f.path;
+    item.onclick = () => selectThemeFile(f.path);
+    const nameEl = document.createElement("span");
+    nameEl.textContent = f.path;
+    const sizeEl = document.createElement("span");
+    sizeEl.className = "theme-file-tree-size";
+    sizeEl.textContent = fmtSize(f.size);
+    item.append(nameEl, sizeEl);
+    tree.appendChild(item);
+  }
+}
+
+async function selectThemeFile(path) {
+  if (!themeEditTarget) return;
+  themeEditFile = path;
+  renderThemeFileTree();
+  resetThemeFileEditor();
+  try {
+    const res = await apiGet(`theme/${themeEditTarget.id}/file`, { path });
+    if (res.base64) {
+      // 二进制文件（如图片图标）：预览并支持上传替换
+      showThemeImageEditor(
+        res.path,
+        res.base64,
+        res.mime || "application/octet-stream",
+      );
+    } else {
+      showThemeTextEditor(res.content || "");
+    }
+  } catch (err) {
+    showToast(err.message || "读取文件失败", true);
+  }
+}
+
+async function saveThemeFile() {
+  if (!themeEditTarget || !themeEditFile) return;
+  try {
+    await apiPost(`theme/${themeEditTarget.id}/file`, {
+      path: themeEditFile,
+      content: $("themeFileContent").value,
+    });
+  } catch (err) {
+    showToast(err.message || "保存文件失败", true);
+    return;
+  }
+  await initTheme();
+  showToast("文件已保存");
+}
+
+// 上传本地图片替换当前图标文件（base64 写入，兼容沙箱 iframe）
+async function uploadThemeIcon(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const dataUrl = String(reader.result || "");
+    const comma = dataUrl.indexOf(",");
+    if (comma < 0) {
+      showToast("读取图片失败", true);
+      return;
+    }
+    const mime = dataUrl.slice(5, comma).split(";")[0] || "image/png";
+    const b64 = dataUrl.slice(comma + 1);
+    try {
+      await apiPost(`theme/${themeEditTarget.id}/file`, {
+        path: themeEditFile,
+        base64: b64,
+        mime,
+      });
+      $("themeImagePreview").src = dataUrl;
+      $("themeImageMeta").textContent = `${themeEditFile}（${mime}）`;
+      await initTheme();
+      showToast("图标已更新");
+    } catch (err) {
+      showToast(err.message || "上传图标失败", true);
+    }
+  };
+  reader.onerror = () => showToast("读取图片失败", true);
+  reader.readAsDataURL(file);
+}
+
+function bindThemeEvents() {
+  $("themeCreateBtn").onclick = createThemeSetting;
+  $("themeImportBtn").onclick = () => $("themeImportFile").click();
+  $("themeImportFile").onchange = (e) => {
+    importThemeSetting(e.target.files[0]);
+    e.target.value = "";
+  };
+  $("themeFileSave").onclick = saveThemeFile;
+  $("themeImageUploadBtn").onclick = () => $("themeImageUploadFile").click();
+  $("themeImageUploadFile").onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) uploadThemeIcon(file);
+    e.target.value = "";
+  };
 }
 
 function collectForm() {
@@ -2746,14 +3128,10 @@ function bindEvents() {
     searchTimer = setTimeout(() => filterToolbox(e.target.value), 200);
   });
 
-  // 主题设置已迁移到独立的「Blockly 主题设置」页面。
-  // 插件页 iframe 沙箱无法自动跳转，弹窗引导用户进入插件详情页后切换页面。
-  $("themeBtn").onclick = () => {
-    confirmDialog("在插件界面进入详情页，然后进入主题设置界面", {
-      title: "主题设置",
-      okText: "知道了",
-    });
-  };
+  // 主题设置与编辑区在同一个插件页内切换（顶部标签 / 工具栏「主题」按钮）
+  $("themeBtn").onclick = () => switchView("theme");
+  $("tabEditor").onclick = () => switchView("editor");
+  $("tabTheme").onclick = () => switchView("theme");
 
   window.addEventListener("beforeunload", (e) => {
     if (dirty) {
