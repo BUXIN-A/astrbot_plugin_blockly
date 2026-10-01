@@ -2,6 +2,15 @@
 
 本插件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循语义化版本。
 
+## [v0.7.1] - 2026-10-01
+
+### 变更
+- **内置 Blockly 引擎更新至官方最新 13.3.0**：`pages/blockly/vendor/` 下的 `blockly_compressed.js`、`blocks_compressed.js`、`python_compressed.js`、`msg_zh-hans.js` 及 `media/` 全部替换为官方 13.3.0 构建产物（此前为 13.2.1）。依旧采用「离线内置 + 浏览器直接用 `<script>` 引入压缩包」的官方支持用法。
+- **最低 AstrBot 版本由 `>=4.9.2` 提升至 `>=4.26.0`**：插件的 Web API 依赖 `from astrbot.api.web import ...` 与 `Context.register_web_api(...)`，其中 `astrbot.api.web` 模块自 AstrBot v4.26.0（后端迁移至 FastAPI）才引入，原声明的最低版本与实际情况不符，会导致在旧版本上因导入失败而无法加载。
+
+### 修复
+- **适配 Blockly 13.x：移除已从核心删除的 `Blockly.Themes.Dark`**。Blockly 核心自 v11 起不再内置 Dark 主题（改由 `@blockly/theme-dark` 插件提供），代码中的 `Blockly.Themes.Dark` 恒为 `undefined`，`Blockly.inject` / `workspace.setTheme` 会静默回退到 Classic。现固定使用 `Blockly.Themes.Classic`——深色外观由插件 CSS（`html[data-theme="dark"]`，由 AstrBot 插件页 bridge 注入）负责，同时移除随之失效的 `initWorkspace(isDark)` 参数与主题切换回调。
+
 ## [v0.7.0] - 2026-08-21
 
 ### 新增

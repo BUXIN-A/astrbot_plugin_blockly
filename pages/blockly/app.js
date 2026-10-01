@@ -1444,11 +1444,13 @@ function enableCommentMenu() {
   }
 }
 
-function initWorkspace(isDark) {
+function initWorkspace() {
   workspace = Blockly.inject("blocklyDiv", {
     toolbox: $("toolbox"),
     media: "vendor/media/",
-    theme: isDark ? Blockly.Themes.Dark : Blockly.Themes.Classic,
+    // Blockly 核心自 v11 起已不再内置 Dark 主题（现由 @blockly/theme-dark 插件提供），
+    // 深色外观由本插件 CSS（html[data-theme="dark"]）负责，故固定使用 Classic 主题。
+    theme: Blockly.Themes.Classic,
     grid: { spacing: 20, length: 3, colour: "#cccccc", snap: true },
     zoom: {
       controls: false,
@@ -2781,14 +2783,7 @@ function bindEvents() {
     registerPythonGenerator();
     // 在 inject 前保存原始工具箱 XML，供积木搜索按关键词重建
     ORIGINAL_TOOLBOX_XML = $("toolbox").outerHTML;
-    initWorkspace(ctx.isDark);
-    bridge.onContext((c) => {
-      if (workspace) {
-        workspace.setTheme(
-          c && c.isDark ? Blockly.Themes.Dark : Blockly.Themes.Classic,
-        );
-      }
-    });
+    initWorkspace();
     bindEvents();
     loadAvailableModels();
     // 先应用主题（CSS + UI 图标）再渲染程序列表，保证动态图标使用主题图标
